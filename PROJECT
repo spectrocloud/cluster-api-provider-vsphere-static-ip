@@ -1,0 +1,3 @@
+domain: spectrocloud.com
+repo: github.com/spectrocloud/cluster-api-provider-vsphere-static-ip
+version: "2"
