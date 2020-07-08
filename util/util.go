@@ -63,51 +63,70 @@ func GetStaticIp(cli client.Client, cluster *capi.Cluster, objName string, log l
 
 func ReconcileIPClaim(cli client.Client, cluster *capi.Cluster, claimName string, log logr.Logger) error {
 	if cluster != nil {
-		ipPool := &ipamv1.IPPool{}
-		key := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
-		if err := cli.Get(context.Background(), key, ipPool); err != nil {
-			if apierrors.IsNotFound(err) {
-				log.V(0).Info("waiting for IPPool to be available, requeue the reconcile")
-				return nil
+		//check if ipclaim already exists
+		ic := &ipamv1.IPClaim{}
+		key := types.NamespacedName{Namespace: cluster.Namespace, Name: claimName}
+		if err := cli.Get(context.Background(), key, ic); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
 			}
+		}
+
+		if ic.Name != "" {
+			log.V(0).Info(fmt.Sprintf("IPClaim already exists for %s, skipping creation", claimName))
+			return nil
 		}
 
 		//create a new ip claim
-		ipclaim := &ipamv1.IPClaim{
-			TypeMeta: metav1.TypeMeta{
-				Kind:       "IPClaim",
-				APIVersion: ipamv1.GroupVersion.String(),
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      claimName,
-				Namespace: cluster.Namespace,
-				Labels: map[string]string{
-					"cluster.x-k8s.io/cluster-name": cluster.Name,
-				},
-			},
-			Spec: ipamv1.IPClaimSpec{
-				Pool: GetObjRef(ipPool),
-			},
-		}
+		return CreateIPClaim(cli, cluster, claimName, log)
+	}
 
-		flag := true
-		ipPoolRef := metav1.OwnerReference{
-			APIVersion:         ipamv1.GroupVersion.String(),
-			Kind:               "IPPool",
-			Name:               ipPool.Name,
-			UID:                ipPool.GetUID(),
-			Controller:         &flag,
-			BlockOwnerDeletion: &flag,
-		}
-		ipclaim.SetOwnerReferences([]metav1.OwnerReference{ipPoolRef})
+	return nil
+}
 
-		if err := cli.Create(context.Background(), ipclaim); err != nil {
-			if !apierrors.IsAlreadyExists(err) {
-				log.V(0).Info(fmt.Sprintf("failed to create ipclaim for %s", ipclaim.Name))
-				return errors.Wrapf(err, "failed to create ipclaim for %s", ipclaim.Name)
-			}
+func CreateIPClaim(cli client.Client, cluster *capi.Cluster, claimName string, log logr.Logger) error {
+	ipPool := &ipamv1.IPPool{}
+	key := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
+	if err := cli.Get(context.Background(), key, ipPool); err != nil {
+		if apierrors.IsNotFound(err) {
+			log.V(0).Info("waiting for IPPool to be available, requeue the reconcile")
+			return nil
 		}
+	}
 
+	ipclaim := &ipamv1.IPClaim{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "IPClaim",
+			APIVersion: ipamv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      claimName,
+			Namespace: cluster.Namespace,
+			Labels: map[string]string{
+				"cluster.x-k8s.io/cluster-name": cluster.Name,
+			},
+		},
+		Spec: ipamv1.IPClaimSpec{
+			Pool: GetObjRef(ipPool),
+		},
+	}
+
+	flag := true
+	ipPoolRef := metav1.OwnerReference{
+		APIVersion:         ipamv1.GroupVersion.String(),
+		Kind:               "IPPool",
+		Name:               ipPool.Name,
+		UID:                ipPool.GetUID(),
+		Controller:         &flag,
+		BlockOwnerDeletion: &flag,
+	}
+	ipclaim.SetOwnerReferences([]metav1.OwnerReference{ipPoolRef})
+
+	if err := cli.Create(context.Background(), ipclaim); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			log.V(0).Info(fmt.Sprintf("failed to create ipclaim for %s", ipclaim.Name))
+			return errors.Wrapf(err, "failed to create ipclaim for %s", ipclaim.Name)
+		}
 	}
 
 	return nil
