@@ -90,6 +90,17 @@ func ReconcileIPClaim(cli client.Client, cluster *capi.Cluster, claimName string
 			},
 		}
 
+		flag := true
+		ipPoolRef := metav1.OwnerReference{
+			APIVersion:         ipamv1.GroupVersion.String(),
+			Kind:               "IPPool",
+			Name:               ipPool.Name,
+			UID:                ipPool.GetUID(),
+			Controller:         &flag,
+			BlockOwnerDeletion: &flag,
+		}
+		ipclaim.SetOwnerReferences([]metav1.OwnerReference{ipPoolRef})
+
 		if err := cli.Create(context.Background(), ipclaim); err != nil {
 			if !apierrors.IsAlreadyExists(err) {
 				log.V(0).Info(fmt.Sprintf("failed to create ipclaim for %s", ipclaim.Name))
