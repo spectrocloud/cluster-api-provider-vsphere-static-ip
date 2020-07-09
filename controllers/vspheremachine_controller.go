@@ -125,7 +125,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 
 			if ipAddr == nil {
 				//if ip address list is not found, create a new ip claim
-				if err := util.ReconcileIPClaim(r.Client, cluster, vsphereMachine.Name, r.Log); err != nil {
+				if err := util.ReconcileIPClaim(r.Client, cluster, vsphereMachine, r.Log); err != nil {
 					return nil, errors.Wrapf(err, "failed to get IP address for vsphere machine: %s", vsphereMachine.Name)
 				}
 
@@ -155,8 +155,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 						}
 						newDevices = append(newDevices, dev)
 					}
-
 					vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = newDevices
+
 					if err := r.Patch(context.TODO(), vsphereMachine.DeepCopyObject(), dataPatch); err != nil {
 						return nil, errors.Wrapf(err, "failed to patch vsphere machine %s", vsphereMachine.Name)
 					} else {

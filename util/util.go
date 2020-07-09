@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"strings"
 
-	corev1 "k8s.io/api/core/v1"
-	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
 	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -61,7 +60,10 @@ func GetStaticIp(cli client.Client, cluster *capi.Cluster, objName string, log l
 
 }
 
-func ReconcileIPClaim(cli client.Client, cluster *capi.Cluster, claimName string, log logr.Logger) error {
+func ReconcileIPClaim(cli client.Client, cluster *capi.Cluster, ownerObj runtime.Object, log logr.Logger) error {
+	o := GetObjRef(ownerObj)
+	claimName := o.Name
+
 	if cluster != nil {
 		//check if ipclaim already exists
 		ic := &ipamv1.IPClaim{}
@@ -78,13 +80,17 @@ func ReconcileIPClaim(cli client.Client, cluster *capi.Cluster, claimName string
 		}
 
 		//create a new ip claim
-		return CreateIPClaim(cli, cluster, claimName, log)
+		return CreateIPClaim(cli, cluster, ownerObj, log)
 	}
 
 	return nil
 }
 
-func CreateIPClaim(cli client.Client, cluster *capi.Cluster, claimName string, log logr.Logger) error {
+func CreateIPClaim(cli client.Client, cluster *capi.Cluster, ownerObj runtime.Object, log logr.Logger) error {
+	//set owner name as the claim name
+	o := GetObjRef(ownerObj)
+	claimName := o.Name
+
 	ipPool := &ipamv1.IPPool{}
 	key := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
 	if err := cli.Get(context.Background(), key, ipPool); err != nil {
@@ -111,16 +117,16 @@ func CreateIPClaim(cli client.Client, cluster *capi.Cluster, claimName string, l
 		},
 	}
 
-	flag := true
-	ipPoolRef := metav1.OwnerReference{
-		APIVersion:         ipamv1.GroupVersion.String(),
-		Kind:               "IPPool",
-		Name:               ipPool.Name,
-		UID:                ipPool.GetUID(),
-		Controller:         &flag,
-		BlockOwnerDeletion: &flag,
+	//set owner ref
+	ref := metav1.OwnerReference{
+		APIVersion: ipamv1.GroupVersion.String(),
+		Kind:       o.Kind,
+		Name:       o.Name,
+		UID:        o.UID,
 	}
-	ipclaim.SetOwnerReferences([]metav1.OwnerReference{ipPoolRef})
+	ownerRefs := ipclaim.GetOwnerReferences()
+	ownerRefs = append(ownerRefs, ref)
+	ipclaim.SetOwnerReferences(ownerRefs)
 
 	if err := cli.Create(context.Background(), ipclaim); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
@@ -151,5 +157,6 @@ func GetObjRef(obj runtime.Object) corev1.ObjectReference {
 		Kind:       kind,
 		Namespace:  m.GetNamespace(),
 		Name:       m.GetName(),
+		UID:        m.GetUID(),
 	}
 }

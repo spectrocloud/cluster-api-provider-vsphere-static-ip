@@ -107,7 +107,7 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 
 			if ipAddr == nil {
 				//if ip address list is not found, create a new ip claim
-				if err := util.ReconcileIPClaim(r.Client, cluster, lb.Name, r.Log); err != nil {
+				if err := util.ReconcileIPClaim(r.Client, cluster, lb, r.Log); err != nil {
 					return nil, errors.Wrapf(err, "failed to get IP address for loadbalancer %s", lb.Name)
 				}
 
