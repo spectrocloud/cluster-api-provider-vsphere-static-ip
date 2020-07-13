@@ -6,180 +6,132 @@ metadata:
   creationTimestamp: null
   name: manager-role
 rules:
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - cluster.x-k8s.io
-    resources:
-      - clusters
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - cluster.x-k8s.io
-    resources:
-      - clusters/status
-    verbs:
-      - get
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ipaddresses
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ipaddresses/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ipclaims
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ipclaims/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ippools
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ippools/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - infrastructure.cluster.x-k8s.io
-    resources:
-      - haproxyloadbalancers
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - infrastructure.cluster.x-k8s.io
-    resources:
-      - haproxyloadbalancers/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - infrastructure.cluster.x-k8s.io
-    resources:
-      - vsphereclusters
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - infrastructure.cluster.x-k8s.io
-    resources:
-      - vsphereclusters/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - infrastructure.cluster.x-k8s.io
-    resources:
-      - vspheremachines
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - infrastructure.cluster.x-k8s.io
-    resources:
-      - vspheremachines/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - infrastructure.cluster.x-k8s.io
-    resources:
-      - vspherevms
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - infrastructure.cluster.x-k8s.io
-    resources:
-      - vspherevms/status
-    verbs:
-      - get
-      - patch
-      - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - clusters
+  - clusters/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cluster.x-k8s.io
+  resources:
+  - machines
+  - machines/status
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - haproxyloadbalancers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - haproxyloadbalancers/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - vspheremachines
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - vspheremachines/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipaddresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipaddresses/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ipclaims/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ippools
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ipam.metal3.io
+  resources:
+  - ippools/status
+  verbs:
+  - get
+  - patch
+  - update
