@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -84,9 +83,9 @@ func (r *VSphereMachineReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		return ctrl.Result{}, nil
 	}
 
-	res, err = r.reconcileIP(cluster)
+	res, err = r.reconcileVSphereMachineIPAddress(cluster, vsphereMachine)
 	if err != nil {
-		log.Error(err, "failed to reconcile IP")
+		log.Error(err, "failed to reconcile VSphereMachine IP")
 	}
 
 	if res == nil {
@@ -96,95 +95,74 @@ func (r *VSphereMachineReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	return *res, err
 }
 
-func (r *VSphereMachineReconciler) reconcileIP(cluster *capi.Cluster) (*ctrl.Result, error) {
-	r.Log.V(0).Info("reconcile IP")
-
-	//reconcile vsphere machine ip
-	vmList := &infrav1.VSphereMachineList{}
-	if err := r.List(context.Background(), vmList, client.InNamespace(cluster.Namespace)); err != nil {
-		return &ctrl.Result{}, util.IgnoreNotFound(err)
-	}
-
-	for _, item := range vmList.Items {
-		if res, err := r.reconcileVSphereMachineIPAddress(cluster, &item); err != nil || res != nil {
-			return res, err
-		}
-	}
-
-	return nil, nil
-}
-
 func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *capi.Cluster, vsphereMachine *infrav1.VSphereMachine) (*ctrl.Result, error) {
 	log := r.Log
 
-	if vsphereMachine != nil {
-		log.V(0).Info(fmt.Sprintf("reconcile ip address for vsphere machine %s", vsphereMachine.Name))
-		devices := vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
-		log.V(0).Info(fmt.Sprintf("Number of devices for %s is %d", vsphereMachine.Name, len(devices)))
-
-		if len(devices) > 0 {
-			if util.IsIPAllocationDHCP(devices) {
-				log.V(0).Info("IP allocation is DHCP")
-				return &ctrl.Result{RequeueAfter: 2 * time.Minute}, nil
-			}
-
-			ipAddr, err := util.GetStaticIp(r.Client, cluster, vsphereMachine.Name, r.Log)
-			if err != nil {
-				return nil, err
-			}
-
-			if ipAddr == nil {
-				//if ip address list is not found, create a new ip claim
-				if err := util.ReconcileIPClaim(r.Client, cluster, vsphereMachine, r.Log); err != nil {
-					return nil, errors.Wrapf(err, "failed to get IP address for vsphere machine: %s", vsphereMachine.Name)
-				}
-
-				log.V(0).Info("waiting for IP address to be available for the vsphere machine, requeue the reconcile")
-				return &ctrl.Result{RequeueAfter: 10 * time.Second}, nil
-			} else {
-				log.V(0).Info(fmt.Sprintf("static IP for %s is %s", vsphereMachine.Name, ipAddr.Name))
-				if len(ipAddr.Spec.Address) > 0 {
-					dataPatch := client.MergeFrom(vsphereMachine.DeepCopy())
-					ipSpec := ipAddr.Spec
-					if ipSpec.Gateway == nil {
-						return nil, errors.Wrapf(err, "invalid gateway assigned for IP address %s", ipAddr.Name)
-					}
-					gateway := string(*ipSpec.Gateway)
-
-					//if DHCP4 is disabled, gateway4 is required
-					//if DHCP6 is disabled, gateway6 is required
-					newDevices := []infrav1.NetworkDeviceSpec{}
-					for _, dev := range vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices {
-						//TODO: handle ipv6
-						if !dev.DHCP4 && len(dev.IPAddrs) <= 0 {
-							ip := fmt.Sprintf("%s/%s", string(ipSpec.Address), strconv.Itoa(ipSpec.Prefix))
-							log.V(0).Info(fmt.Sprintf("assigning ip address %s to vsphere machine %s", ip, vsphereMachine.Name))
-							dev.IPAddrs = []string{ip}
-							dev.Gateway4 = gateway
-							dev.Nameservers = []string{"8.8.8.8"}
-						}
-						newDevices = append(newDevices, dev)
-					}
-					vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = newDevices
-
-					if err := r.Patch(context.TODO(), vsphereMachine.DeepCopyObject(), dataPatch); err != nil {
-						return nil, errors.Wrapf(err, "failed to patch vsphere machine %s", vsphereMachine.Name)
-					} else {
-						log.V(0).Info("vsphere machine patched successfully with static IP")
-					}
-				} else {
-					return nil, fmt.Errorf("failed to get IP address for the vsphere machine: %s", vsphereMachine.Name)
-				}
-				log.V(0).Info("reconcile vsphere machine IP address done")
-			}
-		} else {
-			log.V(0).Info(fmt.Sprintf("no network device found for vsphere machine %s", vsphereMachine.Name))
-		}
-	} else {
-		return nil, fmt.Errorf("invalid vsphere machine: %s", vsphereMachine.Name)
+	if vsphereMachine == nil {
+		return nil, fmt.Errorf("invalid VSphereMachine: %s", vsphereMachine.Name)
 	}
 
-	return nil, nil
+	devices := vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
+	numOfDevices := len(devices)
+	log.V(0).Info(fmt.Sprintf("reconcile IP address for VSphereMachine %s, with a device count of %d", vsphereMachine.Name, numOfDevices))
+	if numOfDevices == 0 {
+		log.V(0).Info(fmt.Sprintf("no network device found for VSphereMachine %s", vsphereMachine.Name))
+		return &ctrl.Result{}, nil
+	}
+
+	updatedDevices := []infrav1.NetworkDeviceSpec{}
+	dataPatch := client.MergeFrom(vsphereMachine.DeepCopy())
+
+	for _, dev := range devices {
+		if util.IsIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
+			updatedDevices = append(updatedDevices, dev)
+			continue
+		}
+
+		ipAddr, err := util.GetStaticIp(r.Client, cluster, vsphereMachine.Name, r.Log)
+		if err != nil {
+			return &ctrl.Result{}, err
+		}
+
+		if ipAddr == nil {
+			//if ip address list is not found, create a new ip claim
+			if err := util.ReconcileIPClaim(r.Client, cluster, vsphereMachine, r.Log); err != nil {
+				return &ctrl.Result{}, errors.Wrapf(err, "failed to get IP address for VSphereMachine: %s", vsphereMachine.Name)
+			}
+
+			log.V(0).Info("waiting for IP address to be available for the VSphereMachine")
+			return &ctrl.Result{}, nil
+		}
+
+		log.V(0).Info(fmt.Sprintf("static IP for %s is %s", vsphereMachine.Name, ipAddr.Name))
+		if len(ipAddr.Spec.Address) == 0 {
+			return &ctrl.Result{}, fmt.Errorf("failed to get IP address for the VSphereMachine: %s", vsphereMachine.Name)
+		}
+
+		ipSpec := ipAddr.Spec
+		if ipSpec.Gateway == nil {
+			return &ctrl.Result{}, errors.Wrapf(err, "invalid gateway assigned for IP address %s", ipAddr.Name)
+		}
+
+		ip := fmt.Sprintf("%s/%s", string(ipSpec.Address), strconv.Itoa(ipSpec.Prefix))
+		log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine %s", ip, vsphereMachine.Name))
+		dev.IPAddrs = []string{ip}
+		gateway := string(*ipSpec.Gateway)
+		//TODO: handle ipv6
+		//gateway4 is required if DHCP4 is disabled, gateway6 is required if DHCP6 is disabled
+		dev.Gateway4 = gateway
+		dev.Nameservers = []string{"8.8.8.8"}
+
+		updatedDevices = append(updatedDevices, dev)
+	}
+
+	vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = updatedDevices
+	if err := r.Patch(context.TODO(), vsphereMachine.DeepCopyObject(), dataPatch); err != nil {
+		return &ctrl.Result{}, errors.Wrapf(err, "failed to patch VSphereMachine %s", vsphereMachine.Name)
+	}
+
+	log.V(0).Info("successfully reconciled IP address for VSphereMachine")
+	return &ctrl.Result{}, nil
 }
 
 func (r *VSphereMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {

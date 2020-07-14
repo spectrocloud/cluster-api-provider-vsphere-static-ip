@@ -20,11 +20,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func IsIPAllocationDHCP(devices []infrav1.NetworkDeviceSpec) bool {
-	for _, dev := range devices {
-		if dev.DHCP4 || dev.DHCP6 {
-			return true
-		}
+func IsIPAllocationDHCP(device infrav1.NetworkDeviceSpec) bool {
+	if device.DHCP4 || device.DHCP6 {
+		return true
 	}
 
 	return false
