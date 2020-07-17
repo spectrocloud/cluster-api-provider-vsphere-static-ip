@@ -110,11 +110,16 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		return &ctrl.Result{}, nil
 	}
 
+	if util.IsMachineIPAllocationDHCP(devices) {
+		log.V(0).Info(fmt.Sprintf("VSphereMachine %s has allocation type DHCP", vsphereMachine.Name))
+		return &ctrl.Result{}, nil
+	}
+
 	updatedDevices := []infrav1.NetworkDeviceSpec{}
 	dataPatch := client.MergeFrom(vsphereMachine.DeepCopy())
 
 	for _, dev := range devices {
-		if util.IsIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
+		if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
 			updatedDevices = append(updatedDevices, dev)
 			continue
 		}
@@ -144,6 +149,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			return &ctrl.Result{}, errors.Wrapf(err, "invalid gateway assigned for IP address %s", ipAddr.Name)
 		}
 
+		//capv expects static-ip in the CIDR format
 		ip := fmt.Sprintf("%s/%s", string(ipSpec.Address), strconv.Itoa(ipSpec.Prefix))
 		log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine %s", ip, vsphereMachine.Name))
 		dev.IPAddrs = []string{ip}

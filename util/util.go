@@ -20,7 +20,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func IsIPAllocationDHCP(device infrav1.NetworkDeviceSpec) bool {
+func IsMachineIPAllocationDHCP(devices []infrav1.NetworkDeviceSpec) bool {
+	isDHCP := true
+	for _, dev := range devices {
+		if !dev.DHCP4 && !dev.DHCP6 {
+			isDHCP = false
+		}
+	}
+
+	return isDHCP
+}
+
+func IsDeviceIPAllocationDHCP(device infrav1.NetworkDeviceSpec) bool {
 	if device.DHCP4 || device.DHCP6 {
 		return true
 	}
@@ -29,31 +40,31 @@ func IsIPAllocationDHCP(device infrav1.NetworkDeviceSpec) bool {
 }
 
 func GetStaticIp(cli client.Client, cluster *capi.Cluster, objName string, log logr.Logger) (*ipamv1.IPAddress, error) {
-	if cluster != nil {
-		ipAddressList := ipamv1.IPAddressList{}
-		if err := cli.List(context.Background(), &ipAddressList, client.InNamespace(cluster.Namespace)); err != nil {
-			log.V(0).Info(fmt.Sprintf("Error fetching IPAddressList: %v", err))
-			if !apierrors.IsNotFound(err) {
-				return nil, err
-			}
-		}
+	if cluster == nil {
+		return nil, fmt.Errorf("invalid cluster, failed to get static IP")
+	}
 
-		if len(ipAddressList.Items) > 0 {
-			//the name of the IPAddress will be prefixed with the 'namePrefix' set in IPPool
-			//the namePrefix of the IPPool is set to the cluster-name
-			for i := range ipAddressList.Items {
-				ip := ipAddressList.Items[i]
-				if strings.HasPrefix(ip.Name, cluster.Name) &&
-					ip.Spec.Pool.Name == cluster.Name && ip.Spec.Claim.Name == objName {
-					log.V(0).Info(fmt.Sprintf("IPAddress for %s, is %s", objName, ip.Spec.Address))
-					ipAddress := &ip
-					return ipAddress, nil
-				}
-			}
+	ipAddressList := ipamv1.IPAddressList{}
+	if err := cli.List(context.Background(), &ipAddressList, client.InNamespace(cluster.Namespace)); err != nil {
+		log.V(0).Info(fmt.Sprintf("Error fetching IPAddressList: %v", err))
+		if !apierrors.IsNotFound(err) {
+			return nil, err
 		}
 	}
 
-	log.V(0).Info(fmt.Sprintf("no static ip available for %s", objName))
+	//the namePrefix field in the IPPool is set to the cluster-name
+	//the names of IPAddresses will be prefixed with the 'namePrefix' set in IPPool
+	for _, ip := range ipAddressList.Items {
+		if strings.HasPrefix(ip.Name, cluster.Name) &&
+			ip.Spec.Pool.Name == cluster.Name &&
+			ip.Spec.Claim.Name == objName {
+			log.V(0).Info(fmt.Sprintf("IPAddress for %s, is %s", objName, ip.Spec.Address))
+			ipAddress := &ip
+			return ipAddress, nil
+		}
+	}
+
+	log.V(0).Info(fmt.Sprintf("no static IP available for %s", objName))
 	return nil, nil
 
 }
@@ -62,26 +73,27 @@ func ReconcileIPClaim(cli client.Client, cluster *capi.Cluster, ownerObj runtime
 	o := GetObjRef(ownerObj)
 	claimName := o.Name
 
-	if cluster != nil {
-		//check if ipclaim already exists
-		ic := &ipamv1.IPClaim{}
-		key := types.NamespacedName{Namespace: cluster.Namespace, Name: claimName}
-		if err := cli.Get(context.Background(), key, ic); err != nil {
-			if !apierrors.IsNotFound(err) {
-				return err
-			}
-		}
-
-		if ic.Name != "" {
-			log.V(0).Info(fmt.Sprintf("IPClaim already exists for %s, skipping creation", claimName))
-			return nil
-		}
-
-		//create a new ip claim
-		return CreateIPClaim(cli, cluster, ownerObj, log)
+	if cluster == nil {
+		return nil, fmt.Errorf("invalid cluster, failed to reconcile IPClaim")
 	}
 
-	return nil
+	//check if ipclaim already exists
+	ic := &ipamv1.IPClaim{}
+	key := types.NamespacedName{Namespace: cluster.Namespace, Name: claimName}
+	if err := cli.Get(context.Background(), key, ic); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	if ic.Name != "" {
+		log.V(0).Info(fmt.Sprintf("IPClaim already exists for %s, skipping creation", claimName))
+		return nil
+	}
+
+	//create a new ip claim
+	return CreateIPClaim(cli, cluster, ownerObj, log)
+
 }
 
 func CreateIPClaim(cli client.Client, cluster *capi.Cluster, ownerObj runtime.Object, log logr.Logger) error {
