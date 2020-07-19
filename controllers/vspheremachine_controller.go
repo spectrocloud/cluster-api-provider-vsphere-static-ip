@@ -106,9 +106,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	}
 
 	devices := vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
-	numOfDevices := len(devices)
-	log.V(0).Info(fmt.Sprintf("reconcile IP address for VSphereMachine %s, with a device count of %d", vsphereMachine.Name, numOfDevices))
-	if numOfDevices == 0 {
+	log.V(0).Info(fmt.Sprintf("reconcile IP address for VSphereMachine %s", vsphereMachine.Name))
+	if len(devices) == 0 {
 		log.V(0).Info(fmt.Sprintf("no network device found for VSphereMachine %s", vsphereMachine.Name))
 		return &ctrl.Result{}, nil
 	}
@@ -130,14 +129,15 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 				continue
 			}
 
-			ipAddr, err := ipam.GetStaticIp(cluster, vsphereMachine.Name)
+			//fetch existing static IP
+			ipAddr, err := ipam.GetResourceIp(cluster, vsphereMachine.Name)
 			if err != nil {
 				return &ctrl.Result{}, err
 			}
 
 			if ipAddr == nil {
-				//if ip address list is not found, create a new ip claim
-				if err := util.ReconcileIPClaim(r.Client, cluster, vsphereMachine, r.Log); err != nil {
+				//generate a new static IP for the resource
+				if err := ipam.CreateResourceIP(cluster, vsphereMachine); err != nil {
 					return &ctrl.Result{}, errors.Wrapf(err, "failed to get IP address for VSphereMachine: %s", vsphereMachine.Name)
 				}
 

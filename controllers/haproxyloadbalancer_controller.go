@@ -84,9 +84,8 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 	}
 
 	devices := lb.Spec.VirtualMachineConfiguration.Network.Devices
-	numOfDevices := len(devices)
-	log.V(0).Info(fmt.Sprintf("reconcile IP address for HAProxyLoadBalancer %s, with a device count of %d", lb.Name, numOfDevices))
-	if numOfDevices == 0 {
+	log.V(0).Info(fmt.Sprintf("reconcile IP address for HAProxyLoadBalancer %s", lb.Name))
+	if len(devices) == 0 {
 		log.V(0).Info(fmt.Sprintf("no network device found for HAProxyLoadBalancer %s", lb.Name))
 		return &ctrl.Result{}, nil
 	}
@@ -108,14 +107,14 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 				continue
 			}
 
-			ipAddr, err := ipam.GetStaticIp(cluster, lb.Name)
+			ipAddr, err := ipam.GetResourceIp(cluster, lb.Name)
 			if err != nil {
 				return &ctrl.Result{}, err
 			}
 
 			if ipAddr == nil {
-				//if ip address list is not found, create a new ip claim
-				if err := util.ReconcileIPClaim(r.Client, cluster, lb, r.Log); err != nil {
+				//generate a new static IP for the resource
+				if err := ipam.CreateResourceIP(cluster, lb); err != nil {
 					return nil, errors.Wrapf(err, "failed to get IP address for HAProxyLoadBalancer %s", lb.Name)
 				}
 
