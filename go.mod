@@ -8,6 +8,7 @@ require (
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
 	github.com/pkg/errors v0.9.1
+	github.com/stretchr/testify v1.4.0
 	k8s.io/api v0.19.0-alpha.2
 	k8s.io/apimachinery v0.19.0-alpha.2
 	k8s.io/client-go v11.0.0+incompatible

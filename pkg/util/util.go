@@ -3,7 +3,6 @@ package util
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -39,42 +38,12 @@ func IsDeviceIPAllocationDHCP(device infrav1.NetworkDeviceSpec) bool {
 	return false
 }
 
-func GetStaticIp(cli client.Client, cluster *capi.Cluster, objName string, log logr.Logger) (*ipamv1.IPAddress, error) {
-	if cluster == nil {
-		return nil, fmt.Errorf("invalid cluster, failed to get static IP")
-	}
-
-	ipAddressList := ipamv1.IPAddressList{}
-	if err := cli.List(context.Background(), &ipAddressList, client.InNamespace(cluster.Namespace)); err != nil {
-		log.V(0).Info(fmt.Sprintf("Error fetching IPAddressList: %v", err))
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-	}
-
-	//the namePrefix field in the IPPool is set to the cluster-name
-	//the names of IPAddresses will be prefixed with the 'namePrefix' set in IPPool
-	for _, ip := range ipAddressList.Items {
-		if strings.HasPrefix(ip.Name, cluster.Name) &&
-			ip.Spec.Pool.Name == cluster.Name &&
-			ip.Spec.Claim.Name == objName {
-			log.V(0).Info(fmt.Sprintf("IPAddress for %s, is %s", objName, ip.Spec.Address))
-			ipAddress := &ip
-			return ipAddress, nil
-		}
-	}
-
-	log.V(0).Info(fmt.Sprintf("no static IP available for %s", objName))
-	return nil, nil
-
-}
-
 func ReconcileIPClaim(cli client.Client, cluster *capi.Cluster, ownerObj runtime.Object, log logr.Logger) error {
 	o := GetObjRef(ownerObj)
 	claimName := o.Name
 
 	if cluster == nil {
-		return nil, fmt.Errorf("invalid cluster, failed to reconcile IPClaim")
+		fmt.Errorf("invalid cluster, failed to reconcile IPClaim")
 	}
 
 	//check if ipclaim already exists
