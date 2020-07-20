@@ -58,7 +58,7 @@ func main() {
 	)
 
 	flag.StringVar(&watchNamespace, "namespace", "", "Namespace that the controller watches. If not specified, will watch over all namespaces.")
-	flag.DurationVar(&syncPeriod, "sync-period", 2*time.Minute, "The minimum interval at which watched resources are reconciled (e.g. 5m)")
+	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Minute, "The minimum interval at which watched resources are reconciled (e.g. 5m)")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.IntVar(&maxConcurrentReconciles, "max-concurrency", 2, "MaxConcurrentReconciles is the maximum number of concurrent Reconciles which can be run")

@@ -1,6 +1,9 @@
 package util
 
 import (
+	"fmt"
+
+	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -27,6 +30,44 @@ func IsDeviceIPAllocationDHCP(device infrav1.NetworkDeviceSpec) bool {
 	return false
 }
 
+func ValidateIP(ip ipam.IPAddress) error {
+	if addr, err := ip.GetAddress(); addr == "" || err != nil {
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("invalid 'address' in IPAddress")
+	}
+	if gat, err := ip.GetGateway(); gat == "" || err != nil {
+		if err != nil {
+			return err
+		}
+		fmt.Errorf("invalid 'gateway' in IPAddress")
+	}
+
+	return nil
+}
+
+func GetAddress(ip ipam.IPAddress) string {
+	if a, err := ip.GetAddress(); err == nil {
+		return string(a)
+	}
+	return ""
+}
+
+func GetGateway(ip ipam.IPAddress) string {
+	if g, err := ip.GetGateway(); err == nil {
+		return string(g)
+	}
+	return ""
+}
+
+func GetMask(ip ipam.IPAddress) int {
+	if m, err := ip.GetMask(); err == nil {
+		return m
+	}
+	return 0
+}
+
 func IgnoreNotFound(err error) error {
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -48,4 +89,9 @@ func GetObjRef(obj runtime.Object) corev1.ObjectReference {
 		Name:       m.GetName(),
 		UID:        m.GetUID(),
 	}
+}
+
+func GetObjName(obj runtime.Object) string {
+	o := GetObjRef(obj)
+	return o.Name
 }

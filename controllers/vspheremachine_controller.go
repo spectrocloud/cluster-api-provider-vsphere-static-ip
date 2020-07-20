@@ -19,7 +19,8 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"strconv"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -121,7 +122,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	dataPatch := client.MergeFrom(vsphereMachine.DeepCopy())
 
 	if newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]; ok {
-		ipam := newIpamFunc(r.Client, log)
+		f := newIpamFunc(r.Client, log)
 
 		for _, dev := range devices {
 			if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
@@ -129,15 +130,16 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 				continue
 			}
 
-			//fetch existing static IP
-			ipAddr, err := ipam.GetResourceIp(cluster, vsphereMachine.Name)
+			//fetch the existing static IP for the vspheremachine
+			key := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
+			ip, err := f.GetIP("", key, vsphereMachine)
 			if err != nil {
 				return &ctrl.Result{}, err
 			}
 
-			if ipAddr == nil {
-				//generate a new static IP for the resource
-				if err := ipam.CreateResourceIP(cluster, vsphereMachine); err != nil {
+			if ip == nil {
+				//generate a new static IP for the vspheremachine
+				if err := f.AllocateIP("", key, vsphereMachine); err != nil {
 					return &ctrl.Result{}, errors.Wrapf(err, "failed to get IP address for VSphereMachine: %s", vsphereMachine.Name)
 				}
 
@@ -145,21 +147,18 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 				return &ctrl.Result{}, nil
 			}
 
-			log.V(0).Info(fmt.Sprintf("static IP for %s is %s", vsphereMachine.Name, ipAddr.Name))
-			if len(ipAddr.Spec.Address) == 0 {
-				return &ctrl.Result{}, fmt.Errorf("failed to get IP address for the VSphereMachine: %s", vsphereMachine.Name)
+			if err := util.ValidateIP(ip); err != nil {
+				return &ctrl.Result{}, errors.Wrapf(err, "invalid IP address retrieved for VSphereMachine: %s", vsphereMachine.Name)
 			}
 
-			ipSpec := ipAddr.Spec
-			if ipSpec.Gateway == nil {
-				return &ctrl.Result{}, errors.Wrapf(err, "invalid gateway assigned for IP address %s", ipAddr.Name)
-			}
+			log.V(0).Info(fmt.Sprintf("static IP for %s is %s", vsphereMachine.Name, ip.GetName()))
 
 			//capv expects static-ip in the CIDR format
-			ip := fmt.Sprintf("%s/%s", string(ipSpec.Address), strconv.Itoa(ipSpec.Prefix))
-			log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine %s", ip, vsphereMachine.Name))
-			dev.IPAddrs = []string{ip}
-			gateway := string(*ipSpec.Gateway)
+			ipCidr := fmt.Sprintf("%s/%d", util.GetAddress(ip), util.GetMask(ip))
+			log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine %s", util.GetAddress(ip), vsphereMachine.Name))
+
+			dev.IPAddrs = []string{ipCidr}
+			gateway := util.GetGateway(ip)
 			//TODO: handle ipv6
 			//gateway4 is required if DHCP4 is disabled, gateway6 is required if DHCP6 is disabled
 			dev.Gateway4 = gateway
