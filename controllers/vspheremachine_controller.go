@@ -139,11 +139,11 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 
 			if ip == nil {
 				//generate a new static IP for the vspheremachine
-				if err := f.AllocateIP("", key, vsphereMachine); err != nil {
+				if _, err := f.AllocateIP("", key, vsphereMachine); err != nil {
 					return &ctrl.Result{}, errors.Wrapf(err, "failed to get IP address for VSphereMachine: %s", vsphereMachine.Name)
 				}
 
-				log.V(0).Info("waiting for IP address to be available for the VSphereMachine")
+				log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the VSphereMachine %s", vsphereMachine.Name))
 				return &ctrl.Result{}, nil
 			}
 

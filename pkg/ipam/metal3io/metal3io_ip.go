@@ -1,10 +1,8 @@
 package metal3io
 
 import (
-	"github.com/go-logr/logr"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	corev1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type Metal3IP struct {
@@ -25,13 +23,10 @@ type Metal3IP struct {
 
 	// Address contains the IP address
 	Address ipam.IPAddressStr `json:"address"`
-
-	client.Client
-	log logr.Logger
 }
 
-func NewIP(cli client.Client, name string, claim, pool corev1.ObjectReference,
-	prefix int, gateway, address ipam.IPAddressStr, log logr.Logger) ipam.IPAddress {
+func NewIP(name string, claim, pool corev1.ObjectReference,
+	prefix int, gateway, address ipam.IPAddressStr) ipam.IPAddress {
 	return &Metal3IP{
 		Name:    name,
 		Claim:   claim,
@@ -39,8 +34,6 @@ func NewIP(cli client.Client, name string, claim, pool corev1.ObjectReference,
 		Prefix:  prefix,
 		Gateway: gateway,
 		Address: address,
-		Client:  cli,
-		log:     log,
 	}
 }
 

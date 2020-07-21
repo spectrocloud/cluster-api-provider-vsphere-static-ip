@@ -115,11 +115,11 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 
 			if ip == nil {
 				//generate a new static IP for the resource
-				if err := f.AllocateIP("", key, lb); err != nil {
+				if _, err := f.AllocateIP("", key, lb); err != nil {
 					return nil, errors.Wrapf(err, "failed to get IP address for HAProxyLoadBalancer %s", lb.Name)
 				}
 
-				log.V(0).Info("waiting for IP address to be available for the HAProxyLoadBalancer")
+				log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the HAProxyLoadBalancer %s", lb.Name))
 				return &ctrl.Result{}, nil
 			}
 

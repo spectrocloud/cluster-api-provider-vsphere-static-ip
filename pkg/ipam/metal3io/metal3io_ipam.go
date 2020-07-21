@@ -3,7 +3,6 @@ package metal3io
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	v1 "k8s.io/api/core/v1"
 
@@ -33,80 +32,79 @@ func NewIpam(cli client.Client, log logr.Logger) ipam.IPAddressManager {
 
 func (m Metal3IPAM) GetIP(ipName string, key ipam.ObjectKey, ownerObj runtime.Object) (ipam.IPAddress, error) {
 	o := util.GetObjRef(ownerObj)
-	resourceName := o.Name
-	m.log.V(0).Info(fmt.Sprintf("get IPAddress for %s", resourceName))
+	claimName := o.Name
+	m.log.V(0).Info(fmt.Sprintf("get IPAddress for %s", claimName))
 
-	ipAddressList := ipamv1.IPAddressList{}
-	if err := m.List(context.Background(), &ipAddressList, client.InNamespace(key.Namespace)); err != nil {
-		m.log.V(0).Info(fmt.Sprintf("Error fetching IPAddressList: %v", err))
+	ip, err := getIPAddress(m.Client, key, claimName, m.log)
+	if err != nil {
+		return nil, util.IgnoreNotFound(err)
+	}
+
+	return ip, nil
+}
+
+func (m Metal3IPAM) AllocateIP(ipName string, key ipam.ObjectKey, ownerObj runtime.Object, opts ...ipam.CreateOption) (ipam.IPAddress, error) {
+	o := util.GetObjRef(ownerObj)
+	claimName := o.Name
+	m.log.V(0).Info(fmt.Sprintf("allocate IP for %s", claimName))
+
+	//check if ip address already exists
+	ip, err := getIPAddress(m.Client, key, claimName, m.log)
+	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}
 	}
-
-	//the namePrefix field in the IPPool is set to the cluster-name
-	//the names of IPAddresses will be prefixed with the 'namePrefix' set in IPPool
-	for _, ip := range ipAddressList.Items {
-		if strings.HasPrefix(ip.Name, key.Name) &&
-			ip.Spec.Pool.Name == key.Name &&
-			ip.Spec.Claim.Name == resourceName {
-			m.log.V(0).Info(fmt.Sprintf("IPAddress for %s, is %s", resourceName, ip.Spec.Address))
-			return convertToMetal3ioIP(ip), nil
-		}
-	}
-
-	m.log.V(0).Info(fmt.Sprintf("no static IP available for resource %s", resourceName))
-	return nil, nil
-}
-
-func convertToMetal3ioIP(mIP ipamv1.IPAddress) ipam.IPAddress {
-	s := mIP.Spec
-	gateway := ipam.IPAddressStr("")
-	if s.Gateway != nil {
-		gateway = convertToIpamAddressStr(s.Gateway)
-	}
-	return &Metal3IP{
-		Claim:   s.Claim,
-		Pool:    s.Pool,
-		Prefix:  s.Prefix,
-		Gateway: gateway,
-		Address: convertToIpamAddressStr(&s.Address),
-	}
-}
-
-func convertToIpamAddressStr(s *ipamv1.IPAddressStr) ipam.IPAddressStr {
-	if s == nil {
-		return ""
-	}
-
-	return ipam.IPAddressStr(*s)
-}
-
-func (m Metal3IPAM) AllocateIP(ipName string, key ipam.ObjectKey, ownerObj runtime.Object, opts ...ipam.CreateOption) error {
-	o := util.GetObjRef(ownerObj)
-	claimName := o.Name
-	m.log.V(0).Info(fmt.Sprintf("create resource IP for %s", claimName))
-
-	//check if ipclaim already exists
-	ic := &ipamv1.IPClaim{}
-	ickey := types.NamespacedName{Namespace: key.Namespace, Name: claimName}
-	if err := m.Get(context.Background(), ickey, ic); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-	}
-
-	if ic.Name != "" {
-		m.log.V(0).Info(fmt.Sprintf("IPClaim already exists for %s, skipping creation", claimName))
-		return nil
+	if ip != nil {
+		m.log.V(0).Info(fmt.Sprintf("IPAddress already exists for %s, skipping creation", claimName))
+		return ip, nil
 	}
 
 	//create a new ip claim
-	return CreateIPClaim(m.Client, key, o, m.log)
+	if err = createIPClaim(m.Client, key, o, m.log); err != nil {
+		return nil, err
+	}
 
+	return nil, nil
 }
 
-func CreateIPClaim(cli client.Client, key ipam.ObjectKey, ownerRef v1.ObjectReference, log logr.Logger) error {
+func (m Metal3IPAM) ReleaseIP(ipName string, key ipam.ObjectKey, ownerObj runtime.Object, opts ...ipam.DeleteOption) error {
+	return nil
+}
+
+func getIPAddress(cli client.Client, key ipam.ObjectKey, claimName string, log logr.Logger) (ipam.IPAddress, error) {
+	ic, err := getIPClaim(cli, key, claimName, log)
+	if err != nil {
+		return nil, err
+	}
+
+	if ic == nil || ic.Status.Address == nil {
+		log.V(0).Info(fmt.Sprintf("waiting for IPClaim %s", claimName))
+		return nil, nil
+	}
+
+	ip := &ipamv1.IPAddress{}
+	ipKey := types.NamespacedName{Namespace: key.Namespace, Name: ic.Status.Address.Name}
+	if err := cli.Get(context.Background(), ipKey, ip); err != nil {
+		log.V(0).Info(fmt.Sprintf("failed to get IPAddress %v", err))
+		return nil, err
+	}
+
+	return convertToMetal3ioIP(*ip), nil
+}
+
+func getIPClaim(cli client.Client, key ipam.ObjectKey, claimName string, log logr.Logger) (*ipamv1.IPClaim, error) {
+	ic := &ipamv1.IPClaim{}
+	icKey := types.NamespacedName{Namespace: key.Namespace, Name: claimName}
+	if err := cli.Get(context.Background(), icKey, ic); err != nil {
+		log.V(1).Info(fmt.Sprintf("failed to get IPClaim %v", claimName))
+		return nil, err
+	}
+
+	return ic, nil
+}
+
+func createIPClaim(cli client.Client, key ipam.ObjectKey, ownerRef v1.ObjectReference, log logr.Logger) error {
 	//set owner name as the claim name
 	claimName := ownerRef.Name
 	log.V(0).Info(fmt.Sprintf("create IPClaim for %s", claimName))
@@ -149,10 +147,30 @@ func CreateIPClaim(cli client.Client, key ipam.ObjectKey, ownerRef v1.ObjectRefe
 
 	if err := cli.Create(context.Background(), ipclaim); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
-			log.V(0).Info(fmt.Sprintf("failed to create ipclaim for %s", ipclaim.Name))
-			return errors.Wrapf(err, "failed to create ipclaim for %s", ipclaim.Name)
+			return errors.Wrapf(err, "failed to create IPClaim for %s", ipclaim.Name)
 		}
 	}
 
+	log.V(0).Info(fmt.Sprintf("created IPClaim %s, waiting for IPAddress", claimName))
 	return nil
+}
+
+func convertToMetal3ioIP(mIP ipamv1.IPAddress) ipam.IPAddress {
+	s := mIP.Spec
+	gateway := ipam.IPAddressStr("")
+	if s.Gateway != nil {
+		gateway = convertToIpamAddressStr(s.Gateway)
+	}
+
+	address := convertToIpamAddressStr(&s.Address)
+
+	return NewIP(string(address), s.Claim, s.Pool, s.Prefix, gateway, address)
+}
+
+func convertToIpamAddressStr(s *ipamv1.IPAddressStr) ipam.IPAddressStr {
+	if s == nil {
+		return ""
+	}
+
+	return ipam.IPAddressStr(*s)
 }

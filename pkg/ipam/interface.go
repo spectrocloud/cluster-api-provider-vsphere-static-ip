@@ -10,8 +10,9 @@ type IPAddressManager interface {
 	GetIP(name string, key ObjectKey, ownerObj runtime.Object) (IPAddress, error)
 
 	// creates/requests a new static IP for the resource if it does not exist
-	AllocateIP(name string, key ObjectKey, ownerObj runtime.Object, opts ...CreateOption) error
-	//ReleaseIP(cluster *capi.Cluster, owner runtime.Object, ipName string) error
+	AllocateIP(name string, key ObjectKey, ownerObj runtime.Object, opts ...CreateOption) (IPAddress, error)
+
+	ReleaseIP(name string, key ObjectKey, ownerObj runtime.Object, opts ...DeleteOption) error
 }
 
 type IPAddress interface {
