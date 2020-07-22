@@ -42,7 +42,7 @@ func ValidateIP(ip ipam.IPAddress) error {
 		if err != nil {
 			return err
 		}
-		fmt.Errorf("invalid 'gateway' in IPAddress")
+		return fmt.Errorf("invalid 'gateway' in IPAddress")
 	}
 
 	return nil

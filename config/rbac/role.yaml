@@ -60,8 +60,6 @@ rules:
   resources:
   - vspheremachines
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch
@@ -120,8 +118,6 @@ rules:
   resources:
   - ippools
   verbs:
-  - create
-  - delete
   - get
   - list
   - patch

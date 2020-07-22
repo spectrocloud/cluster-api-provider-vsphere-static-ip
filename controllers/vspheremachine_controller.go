@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -46,12 +47,12 @@ type VSphereMachineReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=vspheremachines,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=vspheremachines,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=vspheremachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines;machines/status,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters;clusters/status,verbs=get;list;watch
-// +kubebuilder:rbac:groups=ipam.metal3.io,resources=ippools,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=ipam.metal3.io,resources=ippools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ippools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipclaims/status,verbs=get;update;patch
@@ -59,11 +60,8 @@ type VSphereMachineReconciler struct {
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipaddresses/status,verbs=get;update;patch
 
 func (r *VSphereMachineReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
-	_ = r.Log.WithValues("vspheremachine", req.NamespacedName)
-
 	ctx := context.Background()
-	log := r.Log
+	log := r.Log.WithValues("vspheremachine", req.NamespacedName)
 	var res *ctrl.Result
 	var err error
 
@@ -105,7 +103,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	log := r.Log
 
 	if vsphereMachine == nil {
-		return &ctrl.Result{}, fmt.Errorf("invalid VSphereMachine: %s", vsphereMachine.Name)
+		log.V(0).Info("invalid VSphereMachine, skipping reconcile IPAddress")
+		return &ctrl.Result{}, nil
 	}
 
 	devices := vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
@@ -136,7 +135,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			poolKey := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
 			ip, err := f.GetIP("", poolKey, vsphereMachine)
 			if err != nil {
-				return &ctrl.Result{}, err
+				return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for VSphereMachine %s", vsphereMachine.Name)
 			}
 
 			if ip == nil {
@@ -148,11 +147,11 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 					},
 				}
 				if _, err := f.AllocateIP("", poolKey, vsphereMachine, poolSelector); err != nil {
-					return &ctrl.Result{}, errors.Wrapf(err, "failed to get IP address for VSphereMachine: %s", vsphereMachine.Name)
+					return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for VSphereMachine: %s", vsphereMachine.Name)
 				}
 
 				log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the VSphereMachine %s", vsphereMachine.Name))
-				return &ctrl.Result{}, nil
+				return &ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 
 			if err := util.ValidateIP(ip); err != nil {

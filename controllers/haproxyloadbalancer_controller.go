@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -48,11 +49,8 @@ type HAProxyLoadBalancerReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=haproxyloadbalancers/status,verbs=get;update;patch
 
 func (r *HAProxyLoadBalancerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
-	_ = r.Log.WithValues("haproxyloadbalancer", req.NamespacedName)
-
 	ctx := context.Background()
-	log := r.Log
+	log := r.Log.WithValues("haproxyloadbalancer", req.NamespacedName)
 	var res *ctrl.Result
 	var err error
 
@@ -82,7 +80,8 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 	log := r.Log
 
 	if lb == nil {
-		return &ctrl.Result{}, fmt.Errorf("invalid HAProxyLoadBalancer: %s", lb.Name)
+		log.V(0).Info("invalid HAProxyLoadBalancer, skipping reconcile IPAddress")
+		return &ctrl.Result{}, nil
 	}
 
 	devices := lb.Spec.VirtualMachineConfiguration.Network.Devices
@@ -113,7 +112,7 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 			poolKey := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
 			ip, err := f.GetIP("", poolKey, lb)
 			if err != nil {
-				return &ctrl.Result{}, err
+				return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for HAProxyLoadBalancer %s", lb.Name)
 			}
 
 			if ip == nil {
@@ -125,11 +124,11 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 					},
 				}
 				if _, err := f.AllocateIP("", poolKey, lb, poolSelector); err != nil {
-					return &ctrl.Result{}, errors.Wrapf(err, "failed to get IP address for HAProxyLoadBalancer %s", lb.Name)
+					return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for HAProxyLoadBalancer %s", lb.Name)
 				}
 
 				log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the HAProxyLoadBalancer %s", lb.Name))
-				return &ctrl.Result{}, nil
+				return &ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 			}
 
 			if err := util.ValidateIP(ip); err != nil {
