@@ -7,8 +7,8 @@ import (
 )
 
 type IPAddressManager interface {
-	// gets the allocated static ip for the owner
-	GetIP(name string, poolKey ObjectKey, ownerObj runtime.Object) (IPAddress, error)
+	// gets the allocated static ip by name
+	GetIP(name string, poolKey ObjectKey) (IPAddress, error)
 
 	// creates/requests a new static ip for the resource, if it does not exist
 	// source ip pool is fetched using optional poolSelector, default is using poolKey

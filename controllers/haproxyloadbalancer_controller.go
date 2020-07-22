@@ -100,7 +100,7 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 	dataPatch := client.MergeFrom(lb.DeepCopy())
 
 	if newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]; ok {
-		f := newIpamFunc(r.Client, log)
+		ipamFunc := newIpamFunc(r.Client, log)
 
 		for _, dev := range devices {
 			if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
@@ -110,7 +110,8 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 
 			//TODO: poolKey should be created fom ip-pool info
 			poolKey := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
-			ip, err := f.GetIP("", poolKey, lb)
+			ipName := util.GetFormattedClaimName(dev.DeviceName, lb.Name)
+			ip, err := ipamFunc.GetIP(ipName, poolKey)
 			if err != nil {
 				return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for HAProxyLoadBalancer %s", lb.Name)
 			}
@@ -123,7 +124,7 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 						ipam.LabelClusterIPPool:  util.ConvertToLabelFormat(cluster.Name),
 					},
 				}
-				if _, err := f.AllocateIP("", poolKey, lb, poolSelector); err != nil {
+				if _, err := ipamFunc.AllocateIP(ipName, poolKey, lb, poolSelector); err != nil {
 					return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for HAProxyLoadBalancer %s", lb.Name)
 				}
 

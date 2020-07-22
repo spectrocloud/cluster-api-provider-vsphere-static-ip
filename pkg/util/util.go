@@ -101,3 +101,7 @@ func ConvertToLabelFormat(s string) string {
 	//lowercase, replacing '-' for space
 	return strings.ReplaceAll(strings.ToLower(s), " ", "-")
 }
+
+func GetFormattedClaimName(deviceName, ownerName string) string {
+	return fmt.Sprintf("%s-%s", deviceName, ownerName)
+}

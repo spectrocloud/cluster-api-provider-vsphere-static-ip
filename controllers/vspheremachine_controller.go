@@ -123,7 +123,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	dataPatch := client.MergeFrom(vsphereMachine.DeepCopy())
 
 	if newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]; ok {
-		f := newIpamFunc(r.Client, log)
+		ipamFunc := newIpamFunc(r.Client, log)
 
 		for _, dev := range devices {
 			if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
@@ -133,7 +133,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 
 			//TODO: poolKey should be created fom ip-pool info
 			poolKey := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
-			ip, err := f.GetIP("", poolKey, vsphereMachine)
+			ipName := util.GetFormattedClaimName(dev.DeviceName, vsphereMachine.Name)
+			ip, err := ipamFunc.GetIP(ipName, poolKey)
 			if err != nil {
 				return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for VSphereMachine %s", vsphereMachine.Name)
 			}
@@ -146,7 +147,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 						ipam.LabelClusterIPPool:  util.ConvertToLabelFormat(cluster.Name),
 					},
 				}
-				if _, err := f.AllocateIP("", poolKey, vsphereMachine, poolSelector); err != nil {
+				if _, err := ipamFunc.AllocateIP(ipName, poolKey, vsphereMachine, poolSelector); err != nil {
 					return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for VSphereMachine: %s", vsphereMachine.Name)
 				}
 
