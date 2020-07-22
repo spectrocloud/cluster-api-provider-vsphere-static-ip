@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
@@ -103,7 +105,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	log := r.Log
 
 	if vsphereMachine == nil {
-		return nil, fmt.Errorf("invalid VSphereMachine: %s", vsphereMachine.Name)
+		return &ctrl.Result{}, fmt.Errorf("invalid VSphereMachine: %s", vsphereMachine.Name)
 	}
 
 	devices := vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
@@ -130,16 +132,22 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 				continue
 			}
 
-			//fetch the existing static IP for the vspheremachine
-			key := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
-			ip, err := f.GetIP("", key, vsphereMachine)
+			//TODO: poolKey should be created fom ip-pool info
+			poolKey := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
+			ip, err := f.GetIP("", poolKey, vsphereMachine)
 			if err != nil {
 				return &ctrl.Result{}, err
 			}
 
 			if ip == nil {
-				//generate a new static IP for the vspheremachine
-				if _, err := f.AllocateIP("", key, vsphereMachine); err != nil {
+				//labels to select the ip pool
+				poolSelector := &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						ipam.LabelClusterNetwork: util.ConvertToLabelFormat(dev.NetworkName),
+						ipam.LabelClusterIPPool:  util.ConvertToLabelFormat(cluster.Name),
+					},
+				}
+				if _, err := f.AllocateIP("", poolKey, vsphereMachine, poolSelector); err != nil {
 					return &ctrl.Result{}, errors.Wrapf(err, "failed to get IP address for VSphereMachine: %s", vsphereMachine.Name)
 				}
 

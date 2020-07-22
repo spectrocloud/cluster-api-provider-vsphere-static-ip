@@ -20,6 +20,8 @@ import (
 	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/factory"
 
@@ -80,7 +82,7 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 	log := r.Log
 
 	if lb == nil {
-		return nil, fmt.Errorf("invalid HAProxyLoadBalancer: %s", lb.Name)
+		return &ctrl.Result{}, fmt.Errorf("invalid HAProxyLoadBalancer: %s", lb.Name)
 	}
 
 	devices := lb.Spec.VirtualMachineConfiguration.Network.Devices
@@ -107,16 +109,23 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 				continue
 			}
 
-			key := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
-			ip, err := f.GetIP("", key, lb)
+			//TODO: poolKey should be created fom ip-pool info
+			poolKey := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
+			ip, err := f.GetIP("", poolKey, lb)
 			if err != nil {
 				return &ctrl.Result{}, err
 			}
 
 			if ip == nil {
-				//generate a new static IP for the resource
-				if _, err := f.AllocateIP("", key, lb); err != nil {
-					return nil, errors.Wrapf(err, "failed to get IP address for HAProxyLoadBalancer %s", lb.Name)
+				//labels to select the ip pool
+				poolSelector := &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						ipam.LabelClusterNetwork: util.ConvertToLabelFormat(dev.NetworkName),
+						ipam.LabelClusterIPPool:  util.ConvertToLabelFormat(cluster.Name),
+					},
+				}
+				if _, err := f.AllocateIP("", poolKey, lb, poolSelector); err != nil {
+					return &ctrl.Result{}, errors.Wrapf(err, "failed to get IP address for HAProxyLoadBalancer %s", lb.Name)
 				}
 
 				log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the HAProxyLoadBalancer %s", lb.Name))

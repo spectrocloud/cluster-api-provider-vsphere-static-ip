@@ -2,17 +2,20 @@ package ipam
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
 type IPAddressManager interface {
-	// gets the existing static IP for the resource
-	GetIP(name string, key ObjectKey, ownerObj runtime.Object) (IPAddress, error)
+	// gets the allocated static ip for the owner
+	GetIP(name string, poolKey ObjectKey, ownerObj runtime.Object) (IPAddress, error)
 
-	// creates/requests a new static IP for the resource if it does not exist
-	AllocateIP(name string, key ObjectKey, ownerObj runtime.Object, opts ...CreateOption) (IPAddress, error)
+	// creates/requests a new static ip for the resource, if it does not exist
+	// source ip pool is fetched using optional poolSelector, default is using poolKey
+	AllocateIP(name string, poolKey ObjectKey, ownerObj runtime.Object, poolSelector *metav1.LabelSelector) (IPAddress, error)
 
-	ReleaseIP(name string, key ObjectKey, ownerObj runtime.Object, opts ...DeleteOption) error
+	// releases static ip back to the ip pool
+	DeallocateIP(name string, poolKey ObjectKey, ownerObj runtime.Object) error
 }
 
 type IPAddress interface {

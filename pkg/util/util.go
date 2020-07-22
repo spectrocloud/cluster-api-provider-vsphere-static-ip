@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	corev1 "k8s.io/api/core/v1"
@@ -94,4 +95,9 @@ func GetObjRef(obj runtime.Object) corev1.ObjectReference {
 func GetObjName(obj runtime.Object) string {
 	o := GetObjRef(obj)
 	return o.Name
+}
+
+func ConvertToLabelFormat(s string) string {
+	//lowercase, replacing '-' for space
+	return strings.ReplaceAll(strings.ToLower(s), " ", "-")
 }
