@@ -160,8 +160,19 @@ func convertToMetal3ioIP(mIP ipamv1.IPAddress) ipam.IPAddress {
 	}
 
 	address := convertToIpamAddressStr(&s.Address)
+	dnsServers := convertToIpamAddressStrArray(s.DNSServers)
 
-	return NewIP(string(address), s.Claim, s.Pool, s.Prefix, gateway, address)
+	return NewIP(string(address), s.Claim, s.Pool, s.Prefix, gateway, address, dnsServers)
+}
+
+func convertToIpamAddressStrArray(sArr []ipamv1.IPAddressStr) []ipam.IPAddressStr {
+	ipamIpArr := []ipam.IPAddressStr{}
+	for _, s := range sArr {
+		ipamIp := convertToIpamAddressStr(&s)
+		ipamIpArr = append(ipamIpArr, ipamIp)
+	}
+
+	return ipamIpArr
 }
 
 func convertToIpamAddressStr(s *ipamv1.IPAddressStr) ipam.IPAddressStr {

@@ -36,4 +36,7 @@ type IPAddress interface {
 
 	// gets ip address
 	GetAddress() (IPAddressStr, error)
+
+	// gets dnsServers
+	GetDnsServers() ([]IPAddressStr, error)
 }

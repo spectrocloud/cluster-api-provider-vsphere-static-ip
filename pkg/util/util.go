@@ -69,6 +69,16 @@ func GetMask(ip ipam.IPAddress) int {
 	return 0
 }
 
+func GetDnsServers(ip ipam.IPAddress) []string {
+	dnsServers := []string{}
+	if dnsArr, err := ip.GetDnsServers(); err == nil {
+		for _, d := range dnsArr {
+			dnsServers = append(dnsServers, string(d))
+		}
+	}
+	return dnsServers
+}
+
 func IgnoreNotFound(err error) error {
 	if apierrors.IsNotFound(err) {
 		return nil

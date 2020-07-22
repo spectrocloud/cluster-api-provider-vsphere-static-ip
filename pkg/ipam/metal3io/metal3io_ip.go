@@ -23,17 +23,21 @@ type Metal3IP struct {
 
 	// Address contains the IP address
 	Address ipam.IPAddressStr `json:"address"`
+
+	// DNSServers is the list of dns servers
+	DNSServers []ipam.IPAddressStr `json:"dnsServers,omitempty"`
 }
 
 func NewIP(name string, claim, pool corev1.ObjectReference,
-	prefix int, gateway, address ipam.IPAddressStr) ipam.IPAddress {
+	prefix int, gateway, address ipam.IPAddressStr, dnsServers []ipam.IPAddressStr) ipam.IPAddress {
 	return &Metal3IP{
-		Name:    name,
-		Claim:   claim,
-		Pool:    pool,
-		Prefix:  prefix,
-		Gateway: gateway,
-		Address: address,
+		Name:       name,
+		Claim:      claim,
+		Pool:       pool,
+		Prefix:     prefix,
+		Gateway:    gateway,
+		Address:    address,
+		DNSServers: dnsServers,
 	}
 }
 
@@ -59,4 +63,8 @@ func (m Metal3IP) GetGateway() (ipam.IPAddressStr, error) {
 
 func (m Metal3IP) GetAddress() (ipam.IPAddressStr, error) {
 	return m.Address, nil
+}
+
+func (m Metal3IP) GetDnsServers() ([]ipam.IPAddressStr, error) {
+	return m.DNSServers, nil
 }
