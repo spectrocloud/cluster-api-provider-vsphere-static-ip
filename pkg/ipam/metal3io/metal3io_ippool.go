@@ -28,6 +28,10 @@ type Metal3IPPool struct {
 	// DNSServers is the list of dns servers
 	DNSServers []ipam.IPAddressStr `json:"dnsServers,omitempty"`
 
+	// SearchDomains is a list of search domains used when resolving IP
+	// addresses with DNS.
+	SearchDomains []ipam.IPAddressStr `json:"searchDomains,omitempty"`
+
 	// +kubebuilder:validation:MinLength=1
 	// namePrefix is the prefix used to generate the IPAddress object names
 	NamePrefix string `json:"namePrefix"`
@@ -35,7 +39,7 @@ type Metal3IPPool struct {
 
 func NewIPPool(name, namespace, namePrefix string, clusterName *string, pools []ipam.Pool,
 	preAllocations map[string]ipam.IPAddressStr, prefix int, gateway *ipam.IPAddressStr,
-	dnsServers []ipam.IPAddressStr) ipam.IPPool {
+	dnsServers, searchDomains []ipam.IPAddressStr) ipam.IPPool {
 	return &Metal3IPPool{
 		Name:           name,
 		Namespace:      namespace,
@@ -46,6 +50,7 @@ func NewIPPool(name, namespace, namePrefix string, clusterName *string, pools []
 		Prefix:         prefix,
 		Gateway:        gateway,
 		DNSServers:     dnsServers,
+		SearchDomains:  searchDomains,
 	}
 }
 
@@ -81,6 +86,10 @@ func (m Metal3IPPool) GetDNSServers() ([]ipam.IPAddressStr, error) {
 	return m.DNSServers, nil
 }
 
+func (m Metal3IPPool) GetSearchDomains() ([]ipam.IPAddressStr, error) {
+	return m.SearchDomains, nil
+}
+
 func (m Metal3IPPool) GetNamePrefix() (string, error) {
 	return m.NamePrefix, nil
 }
@@ -107,16 +116,21 @@ type Metal3Pool struct {
 
 	// DNSServers is the list of dns servers
 	DNSServers []ipam.IPAddressStr `json:"dnsServers,omitempty"`
+
+	// SearchDomains is a list of search domains used when resolving IP
+	// addresses with DNS.
+	SearchDomains []ipam.IPAddressStr `json:"searchDomains,omitempty"`
 }
 
-func NewPool(start, end, gateway *ipam.IPAddressStr, subnet *ipam.IPSubnetStr, prefix int, dnsServers []ipam.IPAddressStr) ipam.Pool {
+func NewPool(start, end, gateway *ipam.IPAddressStr, subnet *ipam.IPSubnetStr, prefix int, dnsServers, searchDomains []ipam.IPAddressStr) ipam.Pool {
 	return &Metal3Pool{
-		Start:      start,
-		End:        end,
-		Gateway:    gateway,
-		Subnet:     subnet,
-		Prefix:     prefix,
-		DNSServers: dnsServers,
+		Start:         start,
+		End:           end,
+		Gateway:       gateway,
+		Subnet:        subnet,
+		Prefix:        prefix,
+		DNSServers:    dnsServers,
+		SearchDomains: searchDomains,
 	}
 }
 
@@ -142,4 +156,8 @@ func (m Metal3Pool) GetGateway() (*ipam.IPAddressStr, error) {
 
 func (m Metal3Pool) GetDNSServers() ([]ipam.IPAddressStr, error) {
 	return m.DNSServers, nil
+}
+
+func (m Metal3Pool) GetSearchDomains() ([]ipam.IPAddressStr, error) {
+	return m.SearchDomains, nil
 }

@@ -86,14 +86,24 @@ func GetMask(ip ipam.IPAddress) int {
 	return 0
 }
 
-func GetDnsServers(ip ipam.IPAddress) []string {
+func GetDNSServers(pool ipam.IPPool) []string {
 	dnsServers := []string{}
-	if dnsArr, err := ip.GetDnsServers(); err == nil {
+	if dnsArr, err := pool.GetDNSServers(); err == nil {
 		for _, d := range dnsArr {
 			dnsServers = append(dnsServers, string(d))
 		}
 	}
 	return dnsServers
+}
+
+func GetSearchDomains(pool ipam.IPPool) []string {
+	searchDomains := []string{}
+	if sdArr, err := pool.GetSearchDomains(); err == nil {
+		for _, d := range sdArr {
+			searchDomains = append(searchDomains, string(d))
+		}
+	}
+	return searchDomains
 }
 
 func IgnoreNotFound(err error) error {

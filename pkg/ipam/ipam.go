@@ -12,7 +12,9 @@ const (
 	LabelClusterIPPoolName    = "cluster.x-k8s.io/ip-pool-name"
 	ClusterIPPoolNameKey      = "cluster.x-k8s.io/ip-pool-name"
 	ClusterIPPoolNamespaceKey = "cluster.x-k8s.io/ip-pool-namespace"
-	SearchDomainKey           = "cluster.x-k8s.io/ip-search-domain"
+
+	// comma-separated list of search domains
+	SearchDomainListKey = "cluster.x-k8s.io/ip-search-domain"
 )
 
 // ObjectKey identifies a Kubernetes Object.

@@ -3,6 +3,7 @@ package metal3io
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
@@ -92,11 +93,17 @@ func (m Metal3IPAM) GetAvailableIPPool(cluster *capi.Cluster, networkName string
 		return nil, nil
 	}
 
+	//TODO: refactor searchDomains, once its added in metal3io
+	searchDomains := []string{}
+	if sdList, ok := cluster.Annotations[ipam.SearchDomainListKey]; ok {
+		searchDomains = strings.Split(sdList, ",")
+	}
+
 	//TODO: handle selection based on ip address availability
 	ipPool := ipPools.Items[0]
 	m.log.V(0).Info(fmt.Sprintf("IPPool %s is available", ipPool.Name))
 
-	return convertToMetal3ioIPPool(poolKey, ipPool), nil
+	return convertToMetal3ioIPPool(poolKey, ipPool, searchDomains), nil
 }
 
 func getIPAddress(cli client.Client, pool ipam.IPPool, ipName string, log logr.Logger) (ipam.IPAddress, error) {
@@ -117,7 +124,12 @@ func getIPAddress(cli client.Client, pool ipam.IPPool, ipName string, log logr.L
 		return nil, errors.Wrapf(err, "failed to get IPAddress %s", ic.Status.Address.Name)
 	}
 
-	return convertToMetal3ioIP(*ip), nil
+	searchDomains, err := pool.GetSearchDomains()
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get search domains for %s", pool.GetName())
+	}
+
+	return convertToMetal3ioIP(*ip, searchDomains), nil
 }
 
 func getIPClaim(cli client.Client, pool ipam.IPPool, claimName string) (*ipamv1.IPClaim, error) {
@@ -178,7 +190,7 @@ func createIPClaim(cli client.Client, pool ipam.IPPool, claimName string, ownerR
 	return nil
 }
 
-func convertToMetal3ioIP(mIP ipamv1.IPAddress) ipam.IPAddress {
+func convertToMetal3ioIP(mIP ipamv1.IPAddress, searchDomains []ipam.IPAddressStr) ipam.IPAddress {
 	s := mIP.Spec
 	gateway := ipam.IPAddressStr("")
 	if s.Gateway != nil {
@@ -188,12 +200,12 @@ func convertToMetal3ioIP(mIP ipamv1.IPAddress) ipam.IPAddress {
 	address := convertToIpamAddressStr(&s.Address)
 	dnsServers := convertToIpamAddressStrArray(s.DNSServers)
 
-	return NewIP(string(address), s.Claim, s.Pool, s.Prefix, gateway, address, dnsServers)
+	return NewIP(string(address), s.Claim, s.Pool, s.Prefix, gateway, address, dnsServers, searchDomains)
 }
 
-func convertToMetal3ioIPPool(poolKey types.NamespacedName, mIPPool ipamv1.IPPool) ipam.IPPool {
+func convertToMetal3ioIPPool(poolKey types.NamespacedName, mIPPool ipamv1.IPPool, searchDomains []string) ipam.IPPool {
 	s := mIPPool.Spec
-	pools := convertToMetal3ioPoolArray(s.Pools)
+	pools := convertToMetal3ioPoolArray(s.Pools, searchDomains)
 	preAllocations := map[string]ipam.IPAddressStr{}
 	for k, v := range s.PreAllocations {
 		preAllocations[k] = convertToIpamAddressStr(&v)
@@ -206,22 +218,23 @@ func convertToMetal3ioIPPool(poolKey types.NamespacedName, mIPPool ipamv1.IPPool
 	for _, d := range s.DNSServers {
 		dnsServers = append(dnsServers, convertToIpamAddressStr(&d))
 	}
+	sdArr := convertStrArrToIpamAddressArr(searchDomains)
 
 	return NewIPPool(poolKey.Name, poolKey.Namespace, s.NamePrefix, s.ClusterName, pools,
-		preAllocations, s.Prefix, &gateway, dnsServers)
+		preAllocations, s.Prefix, &gateway, dnsServers, sdArr)
 }
 
-func convertToMetal3ioPoolArray(pArr []ipamv1.Pool) []ipam.Pool {
+func convertToMetal3ioPoolArray(pArr []ipamv1.Pool, searchDomains []string) []ipam.Pool {
 	ipamPoolArr := []ipam.Pool{}
 	for _, p := range pArr {
-		ipamIp := convertToMetal3ioPool(p)
+		ipamIp := convertToMetal3ioPool(p, searchDomains)
 		ipamPoolArr = append(ipamPoolArr, ipamIp)
 	}
 
 	return ipamPoolArr
 }
 
-func convertToMetal3ioPool(mPool ipamv1.Pool) ipam.Pool {
+func convertToMetal3ioPool(mPool ipamv1.Pool, searchDomains []string) ipam.Pool {
 	start, end, gateway := ipam.IPAddressStr(""), ipam.IPAddressStr(""), ipam.IPAddressStr("")
 	subnet := ipam.IPSubnetStr("")
 	if mPool.Start != nil {
@@ -237,8 +250,9 @@ func convertToMetal3ioPool(mPool ipamv1.Pool) ipam.Pool {
 		subnet = convertToIpamSubnetStr(mPool.Subnet)
 	}
 	dnsServers := convertToIpamAddressStrArray(mPool.DNSServers)
+	sArr := convertStrArrToIpamAddressArr(searchDomains)
 
-	return NewPool(&start, &end, &gateway, &subnet, mPool.Prefix, dnsServers)
+	return NewPool(&start, &end, &gateway, &subnet, mPool.Prefix, dnsServers, sArr)
 }
 
 func convertToIpamAddressStrArray(sArr []ipamv1.IPAddressStr) []ipam.IPAddressStr {
@@ -257,6 +271,20 @@ func convertToIpamAddressStr(s *ipamv1.IPAddressStr) ipam.IPAddressStr {
 	}
 
 	return ipam.IPAddressStr(*s)
+}
+
+func convertStrArrToIpamAddressArr(sArr []string) []ipam.IPAddressStr {
+	ipamIpArr := []ipam.IPAddressStr{}
+	for _, s := range sArr {
+		ipamIp := convertStrToIpamAddressStr(s)
+		ipamIpArr = append(ipamIpArr, ipamIp)
+	}
+
+	return ipamIpArr
+}
+
+func convertStrToIpamAddressStr(s string) ipam.IPAddressStr {
+	return ipam.IPAddressStr(s)
 }
 
 func convertToIpamSubnetStr(s *ipamv1.IPSubnetStr) ipam.IPSubnetStr {

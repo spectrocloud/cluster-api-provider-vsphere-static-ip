@@ -42,6 +42,9 @@ type IPAddress interface {
 
 	// gets dnsServers
 	GetDnsServers() ([]IPAddressStr, error)
+
+	// gets searchDomains
+	GetSearchDomains() ([]IPAddressStr, error)
 }
 
 type IPPool interface {
@@ -53,6 +56,7 @@ type IPPool interface {
 	GetPrefix() (int, error)
 	GetGateway() (*IPAddressStr, error)
 	GetDNSServers() ([]IPAddressStr, error)
+	GetSearchDomains() ([]IPAddressStr, error)
 	GetNamePrefix() (string, error)
 }
 
@@ -63,4 +67,5 @@ type Pool interface {
 	GetPrefix() (int, error)
 	GetGateway() (*IPAddressStr, error)
 	GetDNSServers() ([]IPAddressStr, error)
+	GetSearchDomains() ([]IPAddressStr, error)
 }

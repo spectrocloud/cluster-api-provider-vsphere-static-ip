@@ -26,18 +26,23 @@ type Metal3IP struct {
 
 	// DNSServers is the list of dns servers
 	DNSServers []ipam.IPAddressStr `json:"dnsServers,omitempty"`
+
+	// SearchDomains is a list of search domains used when resolving IP
+	// addresses with DNS.
+	SearchDomains []ipam.IPAddressStr `json:"searchDomains,omitempty"`
 }
 
 func NewIP(name string, claim, pool corev1.ObjectReference,
-	prefix int, gateway, address ipam.IPAddressStr, dnsServers []ipam.IPAddressStr) ipam.IPAddress {
+	prefix int, gateway, address ipam.IPAddressStr, dnsServers, searchDomains []ipam.IPAddressStr) ipam.IPAddress {
 	return &Metal3IP{
-		Name:       name,
-		Claim:      claim,
-		Pool:       pool,
-		Prefix:     prefix,
-		Gateway:    gateway,
-		Address:    address,
-		DNSServers: dnsServers,
+		Name:          name,
+		Claim:         claim,
+		Pool:          pool,
+		Prefix:        prefix,
+		Gateway:       gateway,
+		Address:       address,
+		DNSServers:    dnsServers,
+		SearchDomains: searchDomains,
 	}
 }
 
@@ -67,4 +72,8 @@ func (m Metal3IP) GetAddress() (ipam.IPAddressStr, error) {
 
 func (m Metal3IP) GetDnsServers() ([]ipam.IPAddressStr, error) {
 	return m.DNSServers, nil
+}
+
+func (m Metal3IP) GetSearchDomains() ([]ipam.IPAddressStr, error) {
+	return m.SearchDomains, nil
 }

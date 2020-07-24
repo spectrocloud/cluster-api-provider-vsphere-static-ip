@@ -173,7 +173,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		//TODO: handle ipv6
 		//gateway4 is required if DHCP4 is disabled, gateway6 is required if DHCP6 is disabled
 		dev.Gateway4 = gateway
-		dev.Nameservers = util.GetDnsServers(ip)
+		dev.Nameservers = util.GetDNSServers(ipPool)
+		dev.SearchDomains = util.GetSearchDomains(ipPool)
 
 		updatedDevices = append(updatedDevices, dev)
 		devCounter++
