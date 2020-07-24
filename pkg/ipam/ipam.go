@@ -7,9 +7,12 @@ import (
 )
 
 const (
-	LabelClusterName    = "cluster.x-k8s.io/cluster-name"
-	LabelClusterNetwork = "cluster.x-k8s.io/network"
-	LabelClusterIPPool  = "cluster.x-k8s.io/ip-pool"
+	LabelClusterName          = "cluster.x-k8s.io/cluster-name"
+	LabelClusterNetworkName   = "cluster.x-k8s.io/network-name"
+	LabelClusterIPPoolName    = "cluster.x-k8s.io/ip-pool-name"
+	ClusterIPPoolNameKey      = "cluster.x-k8s.io/ip-pool-name"
+	ClusterIPPoolNamespaceKey = "cluster.x-k8s.io/ip-pool-namespace"
+	SearchDomainKey           = "cluster.x-k8s.io/ip-search-domain"
 )
 
 // ObjectKey identifies a Kubernetes Object.
@@ -25,3 +28,4 @@ const (
 )
 
 type IPAddressStr string
+type IPSubnetStr string

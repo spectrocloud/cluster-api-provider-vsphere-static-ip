@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	v1 "k8s.io/api/core/v1"
-
 	"github.com/go-logr/logr"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	"github.com/pkg/errors"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/util"
+	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -30,10 +30,10 @@ func NewIpam(cli client.Client, log logr.Logger) ipam.IPAddressManager {
 	}
 }
 
-func (m Metal3IPAM) GetIP(ipName string, poolKey ipam.ObjectKey) (ipam.IPAddress, error) {
+func (m Metal3IPAM) GetIP(ipName string, pool ipam.IPPool) (ipam.IPAddress, error) {
 	m.log.V(0).Info(fmt.Sprintf("get IPAddress %s", ipName))
 
-	ip, err := getIPAddress(m.Client, poolKey, ipName, m.log)
+	ip, err := getIPAddress(m.Client, pool, ipName, m.log)
 	if err != nil {
 		return nil, err
 	}
@@ -41,12 +41,12 @@ func (m Metal3IPAM) GetIP(ipName string, poolKey ipam.ObjectKey) (ipam.IPAddress
 	return ip, nil
 }
 
-func (m Metal3IPAM) AllocateIP(ipName string, poolKey ipam.ObjectKey, ownerObj runtime.Object, poolSelector *metav1.LabelSelector) (ipam.IPAddress, error) {
+func (m Metal3IPAM) AllocateIP(ipName string, pool ipam.IPPool, ownerObj runtime.Object) (ipam.IPAddress, error) {
 	o := util.GetObjRef(ownerObj)
 	m.log.V(0).Info(fmt.Sprintf("allocate IP %s", ipName))
 
 	//check if ip claim already exists
-	ic, err := getIPClaim(m.Client, poolKey, ipName, m.log)
+	ic, err := getIPClaim(m.Client, pool, ipName)
 	if err != nil {
 		m.log.V(0).Info(fmt.Sprintf("failed to get IPClaim %s", ipName))
 		return nil, err
@@ -59,19 +59,48 @@ func (m Metal3IPAM) AllocateIP(ipName string, poolKey ipam.ObjectKey, ownerObj r
 	}
 
 	//create a new ip claim
-	if err = createIPClaim(m.Client, poolKey, ipName, o, poolSelector, m.log); err != nil {
+	if err = createIPClaim(m.Client, pool, ipName, o, m.log); err != nil {
 		return nil, err
 	}
 
 	return nil, nil
 }
 
-func (m Metal3IPAM) DeallocateIP(ipName string, key ipam.ObjectKey, ownerObj runtime.Object) error {
+func (m Metal3IPAM) DeallocateIP(name string, pool ipam.IPPool, ownerObj runtime.Object) error {
 	return nil
 }
 
-func getIPAddress(cli client.Client, key ipam.ObjectKey, ipName string, log logr.Logger) (ipam.IPAddress, error) {
-	ic, err := getIPClaim(cli, key, ipName, log)
+func (m Metal3IPAM) GetAvailableIPPool(cluster *capi.Cluster, networkName string) (ipam.IPPool, error) {
+	poolKey := util.GetIPPoolNamespacedName(cluster)
+
+	//labels to select the ip pool
+	poolSelector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			ipam.LabelClusterIPPoolName:  util.ConvertToLabelFormat(poolKey.Name),
+			ipam.LabelClusterNetworkName: util.ConvertToLabelFormat(networkName),
+		},
+	}
+
+	filter := poolSelector.MatchLabels
+	ipPools := &ipamv1.IPPoolList{}
+	if err := m.List(context.Background(), ipPools, client.InNamespace(poolKey.Namespace), client.MatchingLabels(filter)); err != nil {
+		return nil, util.IgnoreNotFound(err)
+	}
+
+	if len(ipPools.Items) == 0 {
+		m.log.V(0).Info("failed to get a matching IPPool")
+		return nil, nil
+	}
+
+	//TODO: handle selection based on ip address availability
+	ipPool := ipPools.Items[0]
+	m.log.V(0).Info(fmt.Sprintf("IPPool %s is available", ipPool.Name))
+
+	return convertToMetal3ioIPPool(poolKey, ipPool), nil
+}
+
+func getIPAddress(cli client.Client, pool ipam.IPPool, ipName string, log logr.Logger) (ipam.IPAddress, error) {
+	ic, err := getIPClaim(cli, pool, ipName)
 	if err != nil {
 		log.V(0).Info(fmt.Sprintf("failed to get IPClaim %s", ipName))
 		return nil, err
@@ -83,7 +112,7 @@ func getIPAddress(cli client.Client, key ipam.ObjectKey, ipName string, log logr
 	}
 
 	ip := &ipamv1.IPAddress{}
-	ipKey := types.NamespacedName{Namespace: key.Namespace, Name: ic.Status.Address.Name}
+	ipKey := types.NamespacedName{Namespace: pool.GetNamespace(), Name: ic.Status.Address.Name}
 	if err := cli.Get(context.Background(), ipKey, ip); err != nil {
 		return nil, errors.Wrapf(err, "failed to get IPAddress %s", ic.Status.Address.Name)
 	}
@@ -91,9 +120,9 @@ func getIPAddress(cli client.Client, key ipam.ObjectKey, ipName string, log logr
 	return convertToMetal3ioIP(*ip), nil
 }
 
-func getIPClaim(cli client.Client, key ipam.ObjectKey, claimName string, log logr.Logger) (*ipamv1.IPClaim, error) {
+func getIPClaim(cli client.Client, pool ipam.IPPool, claimName string) (*ipamv1.IPClaim, error) {
 	ic := &ipamv1.IPClaim{}
-	icKey := types.NamespacedName{Namespace: key.Namespace, Name: claimName}
+	icKey := types.NamespacedName{Namespace: pool.GetNamespace(), Name: claimName}
 	if err := cli.Get(context.Background(), icKey, ic); err != nil {
 		return nil, util.IgnoreNotFound(err)
 	}
@@ -101,17 +130,14 @@ func getIPClaim(cli client.Client, key ipam.ObjectKey, claimName string, log log
 	return ic, nil
 }
 
-func createIPClaim(cli client.Client, poolKey ipam.ObjectKey, claimName string, ownerRef v1.ObjectReference, poolSelector *metav1.LabelSelector, log logr.Logger) error {
+func createIPClaim(cli client.Client, pool ipam.IPPool, claimName string, ownerRef v1.ObjectReference, log logr.Logger) error {
 	//set owner name as the claim name
 	log.V(0).Info(fmt.Sprintf("create IPClaim %s", claimName))
-
-	ipPool, err := getMatchingIPPool(cli, poolKey, poolSelector, log)
-	if err != nil {
-		return err
-	}
-	if ipPool == nil {
-		log.V(0).Info("waiting for IPPool to be available")
-		return nil
+	ipPool := &ipamv1.IPPool{}
+	poolKey := types.NamespacedName{Namespace: pool.GetNamespace(), Name: pool.GetName()}
+	if err := cli.Get(context.Background(), poolKey, ipPool); err != nil {
+		log.V(0).Info(fmt.Sprintf("failed to get IPPool %s", pool.GetName()))
+		return util.IgnoreNotFound(err)
 	}
 
 	ipclaim := &ipamv1.IPClaim{
@@ -121,9 +147,9 @@ func createIPClaim(cli client.Client, poolKey ipam.ObjectKey, claimName string, 
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      claimName,
-			Namespace: poolKey.Namespace,
+			Namespace: pool.GetNamespace(),
 			Labels: map[string]string{
-				ipam.LabelClusterName: poolKey.Name,
+				ipam.LabelClusterName: pool.GetName(),
 			},
 		},
 		Spec: ipamv1.IPClaimSpec{
@@ -165,6 +191,56 @@ func convertToMetal3ioIP(mIP ipamv1.IPAddress) ipam.IPAddress {
 	return NewIP(string(address), s.Claim, s.Pool, s.Prefix, gateway, address, dnsServers)
 }
 
+func convertToMetal3ioIPPool(poolKey types.NamespacedName, mIPPool ipamv1.IPPool) ipam.IPPool {
+	s := mIPPool.Spec
+	pools := convertToMetal3ioPoolArray(s.Pools)
+	preAllocations := map[string]ipam.IPAddressStr{}
+	for k, v := range s.PreAllocations {
+		preAllocations[k] = convertToIpamAddressStr(&v)
+	}
+	gateway := ipam.IPAddressStr("")
+	if s.Gateway != nil {
+		gateway = convertToIpamAddressStr(s.Gateway)
+	}
+	dnsServers := []ipam.IPAddressStr{}
+	for _, d := range s.DNSServers {
+		dnsServers = append(dnsServers, convertToIpamAddressStr(&d))
+	}
+
+	return NewIPPool(poolKey.Name, poolKey.Namespace, s.NamePrefix, s.ClusterName, pools,
+		preAllocations, s.Prefix, &gateway, dnsServers)
+}
+
+func convertToMetal3ioPoolArray(pArr []ipamv1.Pool) []ipam.Pool {
+	ipamPoolArr := []ipam.Pool{}
+	for _, p := range pArr {
+		ipamIp := convertToMetal3ioPool(p)
+		ipamPoolArr = append(ipamPoolArr, ipamIp)
+	}
+
+	return ipamPoolArr
+}
+
+func convertToMetal3ioPool(mPool ipamv1.Pool) ipam.Pool {
+	start, end, gateway := ipam.IPAddressStr(""), ipam.IPAddressStr(""), ipam.IPAddressStr("")
+	subnet := ipam.IPSubnetStr("")
+	if mPool.Start != nil {
+		start = convertToIpamAddressStr(mPool.Start)
+	}
+	if mPool.End != nil {
+		end = convertToIpamAddressStr(mPool.End)
+	}
+	if mPool.Gateway != nil {
+		gateway = convertToIpamAddressStr(mPool.Gateway)
+	}
+	if mPool.Subnet != nil {
+		subnet = convertToIpamSubnetStr(mPool.Subnet)
+	}
+	dnsServers := convertToIpamAddressStrArray(mPool.DNSServers)
+
+	return NewPool(&start, &end, &gateway, &subnet, mPool.Prefix, dnsServers)
+}
+
 func convertToIpamAddressStrArray(sArr []ipamv1.IPAddressStr) []ipam.IPAddressStr {
 	ipamIpArr := []ipam.IPAddressStr{}
 	for _, s := range sArr {
@@ -183,22 +259,10 @@ func convertToIpamAddressStr(s *ipamv1.IPAddressStr) ipam.IPAddressStr {
 	return ipam.IPAddressStr(*s)
 }
 
-func getMatchingIPPool(cli client.Client, poolKey ipam.ObjectKey, poolSelector *metav1.LabelSelector, log logr.Logger) (*ipamv1.IPPool, error) {
-	filter := map[string]string{}
-	if poolSelector != nil {
-		filter = poolSelector.MatchLabels
-	}
-	ipPools := &ipamv1.IPPoolList{}
-	if err := cli.List(context.Background(), ipPools, client.InNamespace(poolKey.Namespace), client.MatchingLabels(filter)); err != nil {
-		return nil, util.IgnoreNotFound(err)
+func convertToIpamSubnetStr(s *ipamv1.IPSubnetStr) ipam.IPSubnetStr {
+	if s == nil {
+		return ""
 	}
 
-	if len(ipPools.Items) == 0 {
-		log.V(0).Info("no matching IPPool available")
-		return nil, nil
-	}
-
-	//TODO: handle selection based on IP availability
-	ipPool := ipPools.Items[0]
-	return &ipPool, nil
+	return ipam.IPSubnetStr(*s)
 }

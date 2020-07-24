@@ -21,10 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/apimachinery/pkg/types"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
@@ -122,68 +118,73 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	updatedDevices := []infrav1.NetworkDeviceSpec{}
 	dataPatch := client.MergeFrom(vsphereMachine.DeepCopy())
 
-	if newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]; ok {
-		ipamFunc := newIpamFunc(r.Client, log)
-
-		for _, dev := range devices {
-			if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
-				updatedDevices = append(updatedDevices, dev)
-				continue
-			}
-
-			//TODO: poolKey should be created fom ip-pool info
-			poolKey := types.NamespacedName{Namespace: cluster.Namespace, Name: cluster.Name}
-			ipName := util.GetFormattedClaimName(dev.DeviceName, vsphereMachine.Name)
-			ip, err := ipamFunc.GetIP(ipName, poolKey)
-			if err != nil {
-				return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for VSphereMachine %s", vsphereMachine.Name)
-			}
-
-			if ip == nil {
-				//labels to select the ip pool
-				poolSelector := &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						ipam.LabelClusterNetwork: util.ConvertToLabelFormat(dev.NetworkName),
-						ipam.LabelClusterIPPool:  util.ConvertToLabelFormat(cluster.Name),
-					},
-				}
-				if _, err := ipamFunc.AllocateIP(ipName, poolKey, vsphereMachine, poolSelector); err != nil {
-					return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for VSphereMachine: %s", vsphereMachine.Name)
-				}
-
-				log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the VSphereMachine %s", vsphereMachine.Name))
-				return &ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-			}
-
-			if err := util.ValidateIP(ip); err != nil {
-				return &ctrl.Result{}, errors.Wrapf(err, "invalid IP address retrieved for VSphereMachine: %s", vsphereMachine.Name)
-			}
-
-			log.V(0).Info(fmt.Sprintf("static IP for %s is %s", vsphereMachine.Name, ip.GetName()))
-
-			//capv expects static-ip in the CIDR format
-			ipCidr := fmt.Sprintf("%s/%d", util.GetAddress(ip), util.GetMask(ip))
-			log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine %s", util.GetAddress(ip), vsphereMachine.Name))
-
-			dev.IPAddrs = []string{ipCidr}
-			gateway := util.GetGateway(ip)
-			//TODO: handle ipv6
-			//gateway4 is required if DHCP4 is disabled, gateway6 is required if DHCP6 is disabled
-			dev.Gateway4 = gateway
-			dev.Nameservers = util.GetDnsServers(ip)
-
-			updatedDevices = append(updatedDevices, dev)
-		}
-
-		vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = updatedDevices
-		if err := r.Patch(context.TODO(), vsphereMachine.DeepCopyObject(), dataPatch); err != nil {
-			return &ctrl.Result{}, errors.Wrapf(err, "failed to patch VSphereMachine %s", vsphereMachine.Name)
-		}
-
-		log.V(0).Info("successfully reconciled IP address for VSphereMachine")
-	} else {
-		return &ctrl.Result{}, fmt.Errorf("ipam type not supported")
+	newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]
+	if !ok {
+		log.V(0).Info("ipam type not supported")
+		return &ctrl.Result{}, nil
 	}
+
+	ipamFunc := newIpamFunc(r.Client, log)
+	devCounter := 0
+
+	for _, dev := range devices {
+		if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
+			updatedDevices = append(updatedDevices, dev)
+			continue
+		}
+
+		ipPool, err := ipamFunc.GetAvailableIPPool(cluster, dev.NetworkName)
+		if err != nil {
+			log.Error(err, "failed to get an available IPPool")
+			return &ctrl.Result{}, nil
+		}
+		if ipPool == nil {
+			log.V(0).Info("waiting for IPPool to be available")
+			return &ctrl.Result{}, nil
+		}
+
+		ipName := util.GetFormattedClaimName(vsphereMachine.Name, devCounter)
+		ip, err := ipamFunc.GetIP(ipName, ipPool)
+		if err != nil {
+			return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for VSphereMachine %s", vsphereMachine.Name)
+		}
+
+		if ip == nil {
+			if _, err := ipamFunc.AllocateIP(ipName, ipPool, vsphereMachine); err != nil {
+				return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for VSphereMachine: %s", vsphereMachine.Name)
+			}
+
+			log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the VSphereMachine %s", vsphereMachine.Name))
+			return &ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+
+		if err := util.ValidateIP(ip); err != nil {
+			return &ctrl.Result{}, errors.Wrapf(err, "invalid IP address retrieved for VSphereMachine: %s", vsphereMachine.Name)
+		}
+
+		log.V(0).Info(fmt.Sprintf("static IP for %s is %s", vsphereMachine.Name, ip.GetName()))
+
+		//capv expects static-ip in the CIDR format
+		ipCidr := fmt.Sprintf("%s/%d", util.GetAddress(ip), util.GetMask(ip))
+		log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine %s", util.GetAddress(ip), vsphereMachine.Name))
+
+		dev.IPAddrs = []string{ipCidr}
+		gateway := util.GetGateway(ip)
+		//TODO: handle ipv6
+		//gateway4 is required if DHCP4 is disabled, gateway6 is required if DHCP6 is disabled
+		dev.Gateway4 = gateway
+		dev.Nameservers = util.GetDnsServers(ip)
+
+		updatedDevices = append(updatedDevices, dev)
+		devCounter++
+	}
+
+	vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = updatedDevices
+	if err := r.Patch(context.TODO(), vsphereMachine.DeepCopyObject(), dataPatch); err != nil {
+		return &ctrl.Result{}, errors.Wrapf(err, "failed to patch VSphereMachine %s", vsphereMachine.Name)
+	}
+
+	log.V(0).Info("successfully reconciled IP address for VSphereMachine")
 
 	return &ctrl.Result{}, nil
 }

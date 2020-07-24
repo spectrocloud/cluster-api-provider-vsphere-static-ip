@@ -2,20 +2,23 @@ package ipam
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
 )
 
 type IPAddressManager interface {
 	// gets the allocated static ip by name
-	GetIP(name string, poolKey ObjectKey) (IPAddress, error)
+	GetIP(name string, pool IPPool) (IPAddress, error)
 
 	// creates/requests a new static ip for the resource, if it does not exist
 	// source ip pool is fetched using optional poolSelector, default is using poolKey
-	AllocateIP(name string, poolKey ObjectKey, ownerObj runtime.Object, poolSelector *metav1.LabelSelector) (IPAddress, error)
+	AllocateIP(name string, pool IPPool, ownerObj runtime.Object) (IPAddress, error)
 
 	// releases static ip back to the ip pool
-	DeallocateIP(name string, poolKey ObjectKey, ownerObj runtime.Object) error
+	DeallocateIP(name string, pool IPPool, ownerObj runtime.Object) error
+
+	// gets an available ip pool for a given network
+	GetAvailableIPPool(cluster *capi.Cluster, networkName string) (IPPool, error)
 }
 
 type IPAddress interface {
@@ -39,4 +42,25 @@ type IPAddress interface {
 
 	// gets dnsServers
 	GetDnsServers() ([]IPAddressStr, error)
+}
+
+type IPPool interface {
+	GetName() string
+	GetNamespace() string
+	GetClusterName() (*string, error)
+	GetPools() ([]Pool, error)
+	GetPreAllocations() (map[string]IPAddressStr, error)
+	GetPrefix() (int, error)
+	GetGateway() (*IPAddressStr, error)
+	GetDNSServers() ([]IPAddressStr, error)
+	GetNamePrefix() (string, error)
+}
+
+type Pool interface {
+	GetStart() (*IPAddressStr, error)
+	GetEnd() (*IPAddressStr, error)
+	GetSubnet() (*IPSubnetStr, error)
+	GetPrefix() (int, error)
+	GetGateway() (*IPAddressStr, error)
+	GetDNSServers() ([]IPAddressStr, error)
 }

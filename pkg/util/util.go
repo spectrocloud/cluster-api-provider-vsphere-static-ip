@@ -9,8 +9,25 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
 )
+
+func GetIPPoolNamespacedName(cluster *capi.Cluster) types.NamespacedName {
+	poolName, ok := cluster.Annotations[ipam.ClusterIPPoolNameKey]
+	if !ok || poolName == "" {
+		//default to cluster name
+		poolName = cluster.Name
+	}
+
+	poolNamespace, ok := cluster.Annotations[ipam.ClusterIPPoolNamespaceKey]
+	if !ok || poolNamespace == "" {
+		//default to cluster namespace
+		poolNamespace = cluster.Namespace
+	}
+	return types.NamespacedName{Namespace: poolNamespace, Name: poolName}
+}
 
 func IsMachineIPAllocationDHCP(devices []infrav1.NetworkDeviceSpec) bool {
 	isDHCP := true
@@ -102,16 +119,11 @@ func GetObjRef(obj runtime.Object) corev1.ObjectReference {
 	}
 }
 
-func GetObjName(obj runtime.Object) string {
-	o := GetObjRef(obj)
-	return o.Name
-}
-
 func ConvertToLabelFormat(s string) string {
 	//lowercase, replacing '-' for space
 	return strings.ReplaceAll(strings.ToLower(s), " ", "-")
 }
 
-func GetFormattedClaimName(deviceName, ownerName string) string {
-	return fmt.Sprintf("%s-%s", deviceName, ownerName)
+func GetFormattedClaimName(ownerName string, deviceCount int) string {
+	return fmt.Sprintf("%s-%d", ownerName, deviceCount)
 }
