@@ -67,5 +67,4 @@ type Pool interface {
 	GetPrefix() (int, error)
 	GetGateway() (*IPAddressStr, error)
 	GetDNSServers() ([]IPAddressStr, error)
-	GetSearchDomains() ([]string, error)
 }

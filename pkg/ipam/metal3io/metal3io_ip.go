@@ -1,6 +1,7 @@
 package metal3io
 
 import (
+	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -9,39 +10,17 @@ type Metal3IP struct {
 	// Name of the IP
 	Name string `json:"name"`
 
-	// Claim points to the object the IPClaim was created for.
-	Claim corev1.ObjectReference `json:"claim"`
-
-	// Pool is the IPPool this was generated from.
-	Pool corev1.ObjectReference `json:"pool"`
-
-	// Prefix is the mask of the network as integer (max 128)
-	Prefix int `json:"prefix,omitempty"`
-
-	// Gateway is the gateway ip address
-	Gateway ipam.IPAddressStr `json:"gateway,omitempty"`
-
-	// Address contains the IP address
-	Address ipam.IPAddressStr `json:"address"`
-
-	// DNSServers is the list of dns servers
-	DNSServers []ipam.IPAddressStr `json:"dnsServers,omitempty"`
+	ipamv1.IPAddress
 
 	// SearchDomains is a list of search domains used when resolving IP
 	// addresses with DNS.
 	SearchDomains []string `json:"searchDomains,omitempty"`
 }
 
-func NewIP(name string, claim, pool corev1.ObjectReference,
-	prefix int, gateway, address ipam.IPAddressStr, dnsServers []ipam.IPAddressStr, searchDomains []string) ipam.IPAddress {
+func NewIP(name string, ipAddress ipamv1.IPAddress, searchDomains []string) ipam.IPAddress {
 	return &Metal3IP{
 		Name:          name,
-		Claim:         claim,
-		Pool:          pool,
-		Prefix:        prefix,
-		Gateway:       gateway,
-		Address:       address,
-		DNSServers:    dnsServers,
+		IPAddress:     ipAddress,
 		SearchDomains: searchDomains,
 	}
 }
@@ -51,27 +30,32 @@ func (m Metal3IP) GetName() string {
 }
 
 func (m Metal3IP) GetClaim() (*corev1.ObjectReference, error) {
-	return &m.Claim, nil
+	return &m.Spec.Claim, nil
 }
 
 func (m Metal3IP) GetPool() (corev1.ObjectReference, error) {
-	return m.Pool, nil
+	return m.Spec.Pool, nil
 }
 
 func (m Metal3IP) GetMask() (int, error) {
-	return m.Prefix, nil
+	return m.Spec.Prefix, nil
 }
 
 func (m Metal3IP) GetGateway() (ipam.IPAddressStr, error) {
-	return m.Gateway, nil
+	gateway := ipam.IPAddressStr("")
+	if m.Spec.Gateway != nil {
+		gateway = convertToIpamAddressStr(m.Spec.Gateway)
+	}
+
+	return gateway, nil
 }
 
 func (m Metal3IP) GetAddress() (ipam.IPAddressStr, error) {
-	return m.Address, nil
+	return convertToIpamAddressStr(&m.Spec.Address), nil
 }
 
 func (m Metal3IP) GetDnsServers() ([]ipam.IPAddressStr, error) {
-	return m.DNSServers, nil
+	return convertToIpamAddressStrArray(m.Spec.DNSServers), nil
 }
 
 func (m Metal3IP) GetSearchDomains() ([]string, error) {
