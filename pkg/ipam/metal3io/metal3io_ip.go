@@ -29,11 +29,11 @@ type Metal3IP struct {
 
 	// SearchDomains is a list of search domains used when resolving IP
 	// addresses with DNS.
-	SearchDomains []ipam.IPAddressStr `json:"searchDomains,omitempty"`
+	SearchDomains []string `json:"searchDomains,omitempty"`
 }
 
 func NewIP(name string, claim, pool corev1.ObjectReference,
-	prefix int, gateway, address ipam.IPAddressStr, dnsServers, searchDomains []ipam.IPAddressStr) ipam.IPAddress {
+	prefix int, gateway, address ipam.IPAddressStr, dnsServers []ipam.IPAddressStr, searchDomains []string) ipam.IPAddress {
 	return &Metal3IP{
 		Name:          name,
 		Claim:         claim,
@@ -74,6 +74,6 @@ func (m Metal3IP) GetDnsServers() ([]ipam.IPAddressStr, error) {
 	return m.DNSServers, nil
 }
 
-func (m Metal3IP) GetSearchDomains() ([]ipam.IPAddressStr, error) {
+func (m Metal3IP) GetSearchDomains() ([]string, error) {
 	return m.SearchDomains, nil
 }

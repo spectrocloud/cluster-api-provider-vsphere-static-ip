@@ -30,7 +30,7 @@ type Metal3IPPool struct {
 
 	// SearchDomains is a list of search domains used when resolving IP
 	// addresses with DNS.
-	SearchDomains []ipam.IPAddressStr `json:"searchDomains,omitempty"`
+	SearchDomains []string `json:"searchDomains,omitempty"`
 
 	// +kubebuilder:validation:MinLength=1
 	// namePrefix is the prefix used to generate the IPAddress object names
@@ -39,7 +39,7 @@ type Metal3IPPool struct {
 
 func NewIPPool(name, namespace, namePrefix string, clusterName *string, pools []ipam.Pool,
 	preAllocations map[string]ipam.IPAddressStr, prefix int, gateway *ipam.IPAddressStr,
-	dnsServers, searchDomains []ipam.IPAddressStr) ipam.IPPool {
+	dnsServers []ipam.IPAddressStr, searchDomains []string) ipam.IPPool {
 	return &Metal3IPPool{
 		Name:           name,
 		Namespace:      namespace,
@@ -86,7 +86,7 @@ func (m Metal3IPPool) GetDNSServers() ([]ipam.IPAddressStr, error) {
 	return m.DNSServers, nil
 }
 
-func (m Metal3IPPool) GetSearchDomains() ([]ipam.IPAddressStr, error) {
+func (m Metal3IPPool) GetSearchDomains() ([]string, error) {
 	return m.SearchDomains, nil
 }
 
@@ -119,10 +119,10 @@ type Metal3Pool struct {
 
 	// SearchDomains is a list of search domains used when resolving IP
 	// addresses with DNS.
-	SearchDomains []ipam.IPAddressStr `json:"searchDomains,omitempty"`
+	SearchDomains []string `json:"searchDomains,omitempty"`
 }
 
-func NewPool(start, end, gateway *ipam.IPAddressStr, subnet *ipam.IPSubnetStr, prefix int, dnsServers, searchDomains []ipam.IPAddressStr) ipam.Pool {
+func NewPool(start, end, gateway *ipam.IPAddressStr, subnet *ipam.IPSubnetStr, prefix int, dnsServers []ipam.IPAddressStr, searchDomains []string) ipam.Pool {
 	return &Metal3Pool{
 		Start:         start,
 		End:           end,
@@ -158,6 +158,6 @@ func (m Metal3Pool) GetDNSServers() ([]ipam.IPAddressStr, error) {
 	return m.DNSServers, nil
 }
 
-func (m Metal3Pool) GetSearchDomains() ([]ipam.IPAddressStr, error) {
+func (m Metal3Pool) GetSearchDomains() ([]string, error) {
 	return m.SearchDomains, nil
 }
