@@ -15,7 +15,7 @@ import (
 )
 
 func GetIPPoolNamespacedName(cluster *capi.Cluster) types.NamespacedName {
-	poolName, ok := cluster.Annotations[ipam.ClusterIPPoolNameKey]
+	poolName, ok := cluster.Annotations[ipam.ClusterIPPoolGroupKey]
 	if !ok || poolName == "" {
 		//default to cluster name
 		poolName = cluster.Name

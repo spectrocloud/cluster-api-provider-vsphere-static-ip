@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	LabelClusterName          = "cluster.x-k8s.io/cluster-name"
-	LabelClusterNetworkName   = "cluster.x-k8s.io/network-name"
-	LabelClusterIPPoolName    = "cluster.x-k8s.io/ip-pool-name"
-	ClusterIPPoolNameKey      = "cluster.x-k8s.io/ip-pool-name"
+	ClusterNameKey        = "cluster.x-k8s.io/cluster-name"
+	ClusterNetworkNameKey = "cluster.x-k8s.io/network-name"
+	// group is used to identify the pool, for eg., 'dev/test/prod' or 'team1/team2'
+	ClusterIPPoolGroupKey     = "cluster.x-k8s.io/ip-pool-group"
 	ClusterIPPoolNamespaceKey = "cluster.x-k8s.io/ip-pool-namespace"
 
 	// comma-separated list of search domains

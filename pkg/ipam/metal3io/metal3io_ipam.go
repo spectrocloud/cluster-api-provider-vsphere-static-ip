@@ -77,8 +77,8 @@ func (m Metal3IPAM) GetAvailableIPPool(cluster *capi.Cluster, networkName string
 	//labels to select the ip pool
 	poolSelector := &metav1.LabelSelector{
 		MatchLabels: map[string]string{
-			ipam.LabelClusterIPPoolName:  util.ConvertToLabelFormat(poolKey.Name),
-			ipam.LabelClusterNetworkName: util.ConvertToLabelFormat(networkName),
+			ipam.ClusterIPPoolGroupKey: util.ConvertToLabelFormat(poolKey.Name),
+			ipam.ClusterNetworkNameKey: util.ConvertToLabelFormat(networkName),
 		},
 	}
 
@@ -161,7 +161,7 @@ func createIPClaim(cli client.Client, pool ipam.IPPool, claimName string, ownerR
 			Name:      claimName,
 			Namespace: pool.GetNamespace(),
 			Labels: map[string]string{
-				ipam.LabelClusterName: pool.GetName(),
+				ipam.ClusterNameKey: pool.GetName(),
 			},
 		},
 		Spec: ipamv1.IPClaimSpec{
