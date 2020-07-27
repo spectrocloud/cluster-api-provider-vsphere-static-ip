@@ -17,8 +17,13 @@ export CURRENT_DIR=${CURDIR}
 
 all: generate manifests static bin
 
+## --------------------------------------
+## Help
+## --------------------------------------
 
-# static analysis section
+help: ## Display this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
 static: fmt vet lint ## Run static code analysis
 fmt: ## Run go fmt against code
 	go fmt ./...
@@ -27,12 +32,10 @@ vet: ## Run go vet against code
 lint: ## Run golangci-lint  against code
 	golangci-lint run    ./...  --timeout 10m  --tests=false
 
-# Run tests
-test: generate fmt vet manifests
+test: generate fmt vet manifests ## Run tests
 	go test ./... -coverprofile cover.out
 
-# Build manager binary
-manager: generate fmt vet
+manager: generate fmt vet ## Build manager binary
 	go build -o bin/manager main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
@@ -51,29 +54,25 @@ uninstall: manifests
 deploy: manifests
 	cd config/manager && kustomize edit set image controller=${STATIC_IP_IMG}
 	kustomize build config/default | kubectl apply -f -
-
-# Generate manifests e.g. CRD, RBAC etc.
-manifests: controller-gen
 	@mkdir -p $(MANIFEST_DIR)
+
+manifests: controller-gen ## Generate manifests e.g. CRD, RBAC etc.
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	cd config/manager && kustomize edit set image controller=${STATIC_IP_IMG}
 	kustomize build config/default > $(MANIFEST_DIR)/staticip-manifest.yaml
 
-
-# Generate code
-generate: controller-gen
+generate: controller-gen ## Generate code
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 bin: generate ## Generate binaries
 	go build -o bin/manager main.go
 
-# Build the docker image
-docker-build:
+docker-build: ## Build the docker image for controller-manager
 	docker build . -t ${STATIC_IP_IMG}
 
-# Push the docker image
-docker-push:
+docker-push: ## Push the docker image
 	docker push ${STATIC_IP_IMG}
+
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
