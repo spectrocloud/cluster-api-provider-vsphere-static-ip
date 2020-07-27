@@ -14,7 +14,7 @@ const (
 	ClusterIPPoolNamespaceKey = "cluster.x-k8s.io/ip-pool-namespace"
 
 	// comma-separated list of search domains
-	SearchDomainListKey = "cluster.x-k8s.io/ip-search-domain"
+	SearchDomainsKey = "cluster.x-k8s.io/dns-search-domains"
 )
 
 // ObjectKey identifies a Kubernetes Object.
