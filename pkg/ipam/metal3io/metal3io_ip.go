@@ -7,9 +7,6 @@ import (
 )
 
 type Metal3IP struct {
-	// Name of the IP
-	Name string `json:"name"`
-
 	ipamv1.IPAddress
 
 	// SearchDomains is a list of search domains used when resolving IP
@@ -17,9 +14,8 @@ type Metal3IP struct {
 	SearchDomains []string `json:"searchDomains,omitempty"`
 }
 
-func NewIP(name string, ipAddress ipamv1.IPAddress, searchDomains []string) ipam.IPAddress {
+func NewIP(ipAddress ipamv1.IPAddress, searchDomains []string) ipam.IPAddress {
 	return &Metal3IP{
-		Name:          name,
 		IPAddress:     ipAddress,
 		SearchDomains: searchDomains,
 	}

@@ -6,12 +6,6 @@ import (
 )
 
 type Metal3IPPool struct {
-	// Name of the IP pool
-	Name string
-
-	// Namespace of the IP pool
-	Namespace string
-
 	ipamv1.IPPool
 
 	// SearchDomains is a list of search domains used when resolving IP
@@ -19,10 +13,8 @@ type Metal3IPPool struct {
 	SearchDomains []string `json:"searchDomains,omitempty"`
 }
 
-func NewIPPool(name, namespace string, pool ipamv1.IPPool, searchDomains []string) ipam.IPPool {
+func NewIPPool(pool ipamv1.IPPool, searchDomains []string) ipam.IPPool {
 	return &Metal3IPPool{
-		Name:          name,
-		Namespace:     namespace,
 		IPPool:        pool,
 		SearchDomains: searchDomains,
 	}

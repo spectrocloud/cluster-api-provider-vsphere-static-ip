@@ -7,9 +7,7 @@ import (
 )
 
 func convertToMetal3ioIP(mIP ipamv1.IPAddress, searchDomains []string) ipam.IPAddress {
-	s := mIP.Spec
-	address := convertToIpamAddressStr(&s.Address)
-	return NewIP(string(address), mIP, searchDomains)
+	return NewIP(mIP, searchDomains)
 }
 
 func convertToMetal3ioIPPool(poolKey types.NamespacedName, mIPPool ipamv1.IPPool, searchDomains []string) ipam.IPPool {
@@ -19,7 +17,7 @@ func convertToMetal3ioIPPool(poolKey types.NamespacedName, mIPPool ipamv1.IPPool
 		preAllocations[k] = convertToIpamAddressStr(&v)
 	}
 
-	return NewIPPool(poolKey.Name, poolKey.Namespace, mIPPool, searchDomains)
+	return NewIPPool(mIPPool, searchDomains)
 }
 
 func convertToMetal3ioPoolArray(pArr []ipamv1.Pool) []ipam.Pool {

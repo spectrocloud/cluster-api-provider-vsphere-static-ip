@@ -96,22 +96,21 @@ func (r *VSphereMachineReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 }
 
 func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *capi.Cluster, vsphereMachine *infrav1.VSphereMachine) (*ctrl.Result, error) {
-	log := r.Log
-
 	if vsphereMachine == nil {
-		log.V(0).Info("invalid VSphereMachine, skipping reconcile IPAddress")
+		r.Log.V(0).Info("invalid VSphereMachine, skipping reconcile IPAddress")
 		return &ctrl.Result{}, nil
 	}
 
+	log := r.Log.WithValues("vsphereMachine", vsphereMachine.Name, "namespace", vsphereMachine.Namespace)
 	devices := vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
-	log.V(0).Info(fmt.Sprintf("reconcile IP address for VSphereMachine %s", vsphereMachine.Name))
+	log.V(0).Info("reconcile IP address for VSphereMachine")
 	if len(devices) == 0 {
-		log.V(0).Info(fmt.Sprintf("no network device found for VSphereMachine %s", vsphereMachine.Name))
+		log.V(0).Info("no network device found for VSphereMachine")
 		return &ctrl.Result{}, nil
 	}
 
 	if util.IsMachineIPAllocationDHCP(devices) {
-		log.V(0).Info(fmt.Sprintf("VSphereMachine %s has allocation type DHCP", vsphereMachine.Name))
+		log.V(0).Info("VSphereMachine has allocation type DHCP")
 		return &ctrl.Result{}, nil
 	}
 
@@ -125,15 +124,14 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	}
 
 	ipamFunc := newIpamFunc(r.Client, log)
-	devCounter := 0
 
-	for _, dev := range devices {
+	for i, dev := range devices {
 		if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
 			updatedDevices = append(updatedDevices, dev)
 			continue
 		}
 
-		ipPool, err := ipamFunc.GetAvailableIPPool(cluster, dev.NetworkName)
+		ipPool, err := ipamFunc.GetAvailableIPPool(cluster.ObjectMeta, dev.NetworkName)
 		if err != nil {
 			log.Error(err, "failed to get an available IPPool")
 			return &ctrl.Result{}, nil
@@ -143,7 +141,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			return &ctrl.Result{}, nil
 		}
 
-		ipName := util.GetFormattedClaimName(vsphereMachine.Name, devCounter)
+		ipName := util.GetFormattedClaimName(vsphereMachine.Name, i)
 		ip, err := ipamFunc.GetIP(ipName, ipPool)
 		if err != nil {
 			return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for VSphereMachine %s", vsphereMachine.Name)
@@ -154,7 +152,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 				return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for VSphereMachine: %s", vsphereMachine.Name)
 			}
 
-			log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the VSphereMachine %s", vsphereMachine.Name))
+			log.V(0).Info("waiting for IP address to be available for the VSphereMachine")
 			return &ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
@@ -162,11 +160,11 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			return &ctrl.Result{}, errors.Wrapf(err, "invalid IP address retrieved for VSphereMachine: %s", vsphereMachine.Name)
 		}
 
-		log.V(0).Info(fmt.Sprintf("static IP for %s is %s", vsphereMachine.Name, ip.GetName()))
+		log.V(0).Info(fmt.Sprintf("static IP for VSphereMachine is %s", ip.GetName()))
 
 		//capv expects static-ip in the CIDR format
 		ipCidr := fmt.Sprintf("%s/%d", util.GetAddress(ip), util.GetMask(ip))
-		log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine %s", util.GetAddress(ip), vsphereMachine.Name))
+		log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine", util.GetAddress(ip)))
 
 		dev.IPAddrs = []string{ipCidr}
 		gateway := util.GetGateway(ip)
@@ -177,7 +175,6 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		dev.SearchDomains = util.GetSearchDomains(ipPool)
 
 		updatedDevices = append(updatedDevices, dev)
-		devCounter++
 	}
 
 	vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = updatedDevices

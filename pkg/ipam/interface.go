@@ -2,8 +2,8 @@ package ipam
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
 )
 
 type IPAddressManager interface {
@@ -18,7 +18,7 @@ type IPAddressManager interface {
 	DeallocateIP(name string, pool IPPool, ownerObj runtime.Object) error
 
 	// gets an available ip pool for a given network
-	GetAvailableIPPool(cluster *capi.Cluster, networkName string) (IPPool, error)
+	GetAvailableIPPool(clusterMeta metav1.ObjectMeta, networkName string) (IPPool, error)
 }
 
 type IPAddress interface {

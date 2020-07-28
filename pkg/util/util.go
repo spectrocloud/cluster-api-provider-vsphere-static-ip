@@ -8,23 +8,23 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
 )
 
-func GetIPPoolNamespacedName(cluster *capi.Cluster) types.NamespacedName {
-	poolName, ok := cluster.Annotations[ipam.ClusterIPPoolGroupKey]
+func GetIPPoolNamespacedName(meta metav1.ObjectMeta) types.NamespacedName {
+	poolName, ok := meta.Annotations[ipam.ClusterIPPoolGroupKey]
 	if !ok || poolName == "" {
 		//default to cluster name
-		poolName = cluster.Name
+		poolName = meta.Name
 	}
 
-	poolNamespace, ok := cluster.Annotations[ipam.ClusterIPPoolNamespaceKey]
+	poolNamespace, ok := meta.Annotations[ipam.ClusterIPPoolNamespaceKey]
 	if !ok || poolNamespace == "" {
 		//default to cluster namespace
-		poolNamespace = cluster.Namespace
+		poolNamespace = meta.Namespace
 	}
 	return types.NamespacedName{Namespace: poolNamespace, Name: poolName}
 }

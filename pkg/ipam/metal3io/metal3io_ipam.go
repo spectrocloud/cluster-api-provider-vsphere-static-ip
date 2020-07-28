@@ -15,7 +15,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -71,8 +70,8 @@ func (m Metal3IPAM) DeallocateIP(name string, pool ipam.IPPool, ownerObj runtime
 	return nil
 }
 
-func (m Metal3IPAM) GetAvailableIPPool(cluster *capi.Cluster, networkName string) (ipam.IPPool, error) {
-	poolKey := util.GetIPPoolNamespacedName(cluster)
+func (m Metal3IPAM) GetAvailableIPPool(clusterMeta metav1.ObjectMeta, networkName string) (ipam.IPPool, error) {
+	poolKey := util.GetIPPoolNamespacedName(clusterMeta)
 
 	//labels to select the ip pool
 	poolSelector := &metav1.LabelSelector{
@@ -95,7 +94,7 @@ func (m Metal3IPAM) GetAvailableIPPool(cluster *capi.Cluster, networkName string
 
 	//TODO: refactor searchDomains, once its added in metal3io
 	searchDomains := []string{}
-	if sdList, ok := cluster.Annotations[ipam.SearchDomainsKey]; ok {
+	if sdList, ok := clusterMeta.Annotations[ipam.SearchDomainsKey]; ok {
 		searchDomains = strings.Split(sdList, ",")
 	}
 
@@ -171,14 +170,12 @@ func createIPClaim(cli client.Client, pool ipam.IPPool, claimName string, ownerR
 
 	//set owner ref
 	ref := metav1.OwnerReference{
-		APIVersion: ipamv1.GroupVersion.String(),
+		APIVersion: ownerRef.APIVersion,
 		Kind:       ownerRef.Kind,
 		Name:       ownerRef.Name,
 		UID:        ownerRef.UID,
 	}
-	ownerRefs := ipclaim.GetOwnerReferences()
-	ownerRefs = append(ownerRefs, ref)
-	ipclaim.SetOwnerReferences(ownerRefs)
+	ipclaim.SetOwnerReferences([]metav1.OwnerReference{ref})
 
 	if err := cli.Create(context.Background(), ipclaim); err != nil {
 		if !apierrors.IsAlreadyExists(err) {

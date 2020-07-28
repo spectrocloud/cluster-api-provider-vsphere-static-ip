@@ -74,22 +74,21 @@ func (r *HAProxyLoadBalancerReconciler) Reconcile(req ctrl.Request) (ctrl.Result
 }
 
 func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *capi.Cluster, lb *infrav1.HAProxyLoadBalancer) (*ctrl.Result, error) {
-	log := r.Log
-
 	if lb == nil {
-		log.V(0).Info("invalid HAProxyLoadBalancer, skipping reconcile IPAddress")
+		r.Log.V(0).Info("invalid HAProxyLoadBalancer, skipping reconcile IPAddress")
 		return &ctrl.Result{}, nil
 	}
 
+	log := r.Log.WithValues("haProxyLoadBalancer", lb.Name, "namespace", lb.Namespace)
 	devices := lb.Spec.VirtualMachineConfiguration.Network.Devices
-	log.V(0).Info(fmt.Sprintf("reconcile IP address for HAProxyLoadBalancer %s", lb.Name))
+	log.V(0).Info("reconcile IP address for HAProxyLoadBalancer")
 	if len(devices) == 0 {
-		log.V(0).Info(fmt.Sprintf("no network device found for HAProxyLoadBalancer %s", lb.Name))
+		log.V(0).Info("no network device found for HAProxyLoadBalancer")
 		return &ctrl.Result{}, nil
 	}
 
 	if util.IsMachineIPAllocationDHCP(devices) {
-		log.V(0).Info(fmt.Sprintf("HAProxyLoadBalancer %s has allocation type DHCP", lb.Name))
+		log.V(0).Info("HAProxyLoadBalancer has allocation type DHCP")
 		return &ctrl.Result{}, nil
 	}
 
@@ -103,15 +102,14 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 	}
 
 	ipamFunc := newIpamFunc(r.Client, log)
-	devCounter := 0
 
-	for _, dev := range devices {
+	for i, dev := range devices {
 		if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
 			updatedDevices = append(updatedDevices, dev)
 			continue
 		}
 
-		ipPool, err := ipamFunc.GetAvailableIPPool(cluster, dev.NetworkName)
+		ipPool, err := ipamFunc.GetAvailableIPPool(cluster.ObjectMeta, dev.NetworkName)
 		if err != nil {
 			log.Error(err, "failed to get an available IPPool")
 			return &ctrl.Result{}, nil
@@ -121,7 +119,7 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 			return &ctrl.Result{}, nil
 		}
 
-		ipName := util.GetFormattedClaimName(lb.Name, devCounter)
+		ipName := util.GetFormattedClaimName(lb.Name, i)
 		ip, err := ipamFunc.GetIP(ipName, ipPool)
 		if err != nil {
 			return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for HAProxyLoadBalancer %s", lb.Name)
@@ -132,7 +130,7 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 				return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for HAProxyLoadBalancer %s", lb.Name)
 			}
 
-			log.V(0).Info(fmt.Sprintf("waiting for IP address to be available for the HAProxyLoadBalancer %s", lb.Name))
+			log.V(0).Info("waiting for IP address to be available for the HAProxyLoadBalancer")
 			return &ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 
@@ -140,11 +138,11 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 			return &ctrl.Result{}, errors.Wrapf(err, "invalid IP address retrieved for HAProxyLoadBalancer: %s", lb.Name)
 		}
 
-		log.V(0).Info(fmt.Sprintf("static IP for %s is %s", lb.Name, ip.GetName()))
+		log.V(0).Info(fmt.Sprintf("static IP for HAProxyLoadBalancer is %s", ip.GetName()))
 
 		//capv expects static-ip in the CIDR format
 		ipCidr := fmt.Sprintf("%s/%d", util.GetAddress(ip), util.GetMask(ip))
-		log.V(0).Info(fmt.Sprintf("assigning IP address %s to HAProxyLoadBalancer %s", util.GetAddress(ip), lb.Name))
+		log.V(0).Info(fmt.Sprintf("assigning IP address %s to HAProxyLoadBalancer", util.GetAddress(ip)))
 		dev.IPAddrs = []string{ipCidr}
 		gateway := util.GetGateway(ip)
 		//TODO: handle ipv6
@@ -154,7 +152,6 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 		dev.SearchDomains = util.GetSearchDomains(ipPool)
 
 		updatedDevices = append(updatedDevices, dev)
-		devCounter++
 	}
 
 	lb.Spec.VirtualMachineConfiguration.Network.Devices = updatedDevices
