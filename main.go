@@ -29,6 +29,7 @@ import (
 	"k8s.io/klog/klogr"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
 	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
+	kubeadmcontrolplane "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 	// +kubebuilder:scaffold:imports
 )
@@ -45,6 +46,8 @@ func init() {
 	_ = infrav1.AddToScheme(scheme)
 	_ = capi.AddToScheme(scheme)
 	_ = capi.AddToScheme(scheme)
+	_ = kubeadmcontrolplane.AddToScheme(scheme)
+
 	// +kubebuilder:scaffold:scheme
 }
 

@@ -10,6 +10,7 @@ const (
 	ClusterNameKey        = "cluster.x-k8s.io/cluster-name"
 	ClusterNetworkNameKey = "cluster.x-k8s.io/network-name"
 	// group is used to identify the pool, for eg., 'dev/test/prod' or 'team1/team2'
+	ClusterIPPoolNameKey      = "cluster.x-k8s.io/ip-pool-name"
 	ClusterIPPoolGroupKey     = "cluster.x-k8s.io/ip-pool-group"
 	ClusterIPPoolNamespaceKey = "cluster.x-k8s.io/ip-pool-namespace"
 

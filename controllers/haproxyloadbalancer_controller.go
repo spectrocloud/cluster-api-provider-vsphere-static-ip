@@ -109,7 +109,7 @@ func (r *HAProxyLoadBalancerReconciler) reconcileLoadBalancerIPAddress(cluster *
 			continue
 		}
 
-		ipPool, err := ipamFunc.GetAvailableIPPool(cluster.ObjectMeta, dev.NetworkName)
+		ipPool, err := ipamFunc.GetAvailableIPPool(lb.Labels, cluster.ObjectMeta)
 		if err != nil {
 			log.Error(err, "failed to get an available IPPool")
 			return &ctrl.Result{}, nil

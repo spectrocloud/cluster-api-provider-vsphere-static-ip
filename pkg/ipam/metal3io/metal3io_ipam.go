@@ -70,26 +70,41 @@ func (m Metal3IPAM) DeallocateIP(name string, pool ipam.IPPool, ownerObj runtime
 	return nil
 }
 
-func (m Metal3IPAM) GetAvailableIPPool(clusterMeta metav1.ObjectMeta, networkName string) (ipam.IPPool, error) {
-	poolKey := util.GetIPPoolNamespacedName(clusterMeta)
+func (m Metal3IPAM) GetAvailableIPPool(poolMatchLabels map[string]string, clusterMeta metav1.ObjectMeta) (ipam.IPPool, error) {
+	ipPool := ipamv1.IPPool{}
 
-	//labels to select the ip pool
-	poolSelector := &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			ipam.ClusterIPPoolGroupKey: util.ConvertToLabelFormat(poolKey.Name),
-			ipam.ClusterNetworkNameKey: util.ConvertToLabelFormat(networkName),
-		},
-	}
+	//if the specific ip-pool name is provided use that to get the ip-pool
+	if v, ok := poolMatchLabels[ipam.ClusterIPPoolNameKey]; ok && v != "" {
+		key := types.NamespacedName{Namespace: clusterMeta.Namespace, Name: v}
+		if err := m.Get(context.Background(), key, &ipPool); err != nil {
+			return nil, errors.Wrapf(err, "failed to get IPPool %s", v)
+		}
+	} else {
+		//use labels 'ip-pool-group' & 'network-name' to select the ip-pool
+		matchLabels := map[string]string{}
+		if v, ok := poolMatchLabels[ipam.ClusterIPPoolGroupKey]; ok && v != "" {
+			matchLabels[ipam.ClusterIPPoolGroupKey] = v
+		}
+		if v, ok := poolMatchLabels[ipam.ClusterNetworkNameKey]; ok && v != "" {
+			matchLabels[ipam.ClusterNetworkNameKey] = v
+		}
 
-	filter := poolSelector.MatchLabels
-	ipPools := &ipamv1.IPPoolList{}
-	if err := m.List(context.Background(), ipPools, client.InNamespace(poolKey.Namespace), client.MatchingLabels(filter)); err != nil {
-		return nil, util.IgnoreNotFound(err)
-	}
+		ipPools := &ipamv1.IPPoolList{}
+		if err := m.List(
+			context.Background(),
+			ipPools,
+			client.InNamespace(getIPPoolNamespace(clusterMeta)),
+			client.MatchingLabels(matchLabels)); err != nil {
+			return nil, util.IgnoreNotFound(err)
+		}
 
-	if len(ipPools.Items) == 0 {
-		m.log.V(0).Info("failed to get a matching IPPool")
-		return nil, nil
+		if len(ipPools.Items) == 0 {
+			m.log.V(0).Info("failed to get a matching IPPool")
+			return nil, nil
+		}
+
+		//TODO: handle selection based on ip address availability
+		ipPool = ipPools.Items[0]
 	}
 
 	//TODO: refactor searchDomains, once its added in metal3io
@@ -98,11 +113,18 @@ func (m Metal3IPAM) GetAvailableIPPool(clusterMeta metav1.ObjectMeta, networkNam
 		searchDomains = strings.Split(sdList, ",")
 	}
 
-	//TODO: handle selection based on ip address availability
-	ipPool := ipPools.Items[0]
 	m.log.V(0).Info(fmt.Sprintf("IPPool %s is available", ipPool.Name))
 
-	return convertToMetal3ioIPPool(poolKey, ipPool, searchDomains), nil
+	return convertToMetal3ioIPPool(ipPool, searchDomains), nil
+}
+
+func getIPPoolNamespace(meta metav1.ObjectMeta) string {
+	if poolNamespace, ok := meta.Annotations[ipam.ClusterIPPoolNamespaceKey]; ok && poolNamespace != "" {
+		return poolNamespace
+	}
+
+	//default to cluster namespace
+	return meta.Namespace
 }
 
 func getIPAddress(cli client.Client, pool ipam.IPPool, ipName string, log logr.Logger) (ipam.IPAddress, error) {
