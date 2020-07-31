@@ -212,7 +212,11 @@ func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMac
 		}
 
 		kcpList := &v1alpha3.KubeadmControlPlaneList{}
-		err := cli.List(context.Background(), kcpList, client.MatchingLabels(kcpFilter))
+		err := cli.List(
+			context.Background(),
+			kcpList,
+			client.InNamespace(vsphereMachine.Namespace),
+			client.MatchingLabels(kcpFilter))
 		if err != nil {
 			log.Error(err, fmt.Sprintf("failed to get kcp for cluster %s", clusterMeta.Name))
 			return labels
