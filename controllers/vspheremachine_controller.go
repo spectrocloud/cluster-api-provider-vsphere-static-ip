@@ -21,6 +21,10 @@ import (
 	"fmt"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	infrautilv1 "sigs.k8s.io/cluster-api-provider-vsphere/pkg/util"
+
 	"sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 
 	"github.com/go-logr/logr"
@@ -134,7 +138,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			continue
 		}
 
-		matchLabels := getMatchLabels(r.Client, vsphereMachine, r.Log)
+		matchLabels := getMatchLabels(r.Client, cluster.ObjectMeta, vsphereMachine, r.Log)
 		ipPool, err := ipamFunc.GetAvailableIPPool(matchLabels, cluster.ObjectMeta)
 		if err != nil {
 			log.Error(err, "failed to get an available IPPool")
@@ -191,7 +195,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	return &ctrl.Result{}, nil
 }
 
-func getMatchLabels(cli client.Client, vsphereMachine *infrav1.VSphereMachine, log logr.Logger) map[string]string {
+func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMachine *infrav1.VSphereMachine, log logr.Logger) map[string]string {
 	labels := map[string]string{}
 
 	//match labels are an aggregate of VSphereMachine labels & VSphereMachineTemplate labels
@@ -200,26 +204,33 @@ func getMatchLabels(cli client.Client, vsphereMachine *infrav1.VSphereMachine, l
 		labels[k] = v
 	}
 
-	for _, oRef := range vsphereMachine.OwnerReferences {
-		if oRef.Kind == "KubeadmControlPlane" {
-			kcp := &v1alpha3.KubeadmControlPlane{}
-			key := types.NamespacedName{Namespace: vsphereMachine.Namespace, Name: oRef.Name}
-			if err := cli.Get(context.Background(), key, kcp); err != nil {
-				log.Error(err, fmt.Sprintf("failed to get kcp %s", oRef.Name))
-				return labels
-			}
-			vmTemplateRef := kcp.Spec.InfrastructureTemplate
-			vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
-			key = types.NamespacedName{Namespace: vsphereMachine.Namespace, Name: vmTemplateRef.Name}
-			if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
-				log.Error(err, fmt.Sprintf("failed to get vsphere machine template %s", vmTemplateRef.Name))
-				return labels
-			}
-			vmTemplateLabels := util.GetObjLabels(vsphereMachineTemplate)
-			for k, v := range vmTemplateLabels {
-				labels[k] = v
-			}
-			break
+	//in case of controlplane vsphereMachines the ippool labels have to be retrieved from the vsphereMachineTemplate
+	if infrautilv1.IsControlPlaneMachine(vsphereMachine) {
+		//labels to select kcp
+		kcpFilter := map[string]string{
+			ipam.ClusterNameKey: clusterMeta.Name,
+		}
+
+		kcpList := &v1alpha3.KubeadmControlPlaneList{}
+		err := cli.List(context.Background(), kcpList, client.MatchingLabels(kcpFilter))
+		if err != nil {
+			log.Error(err, fmt.Sprintf("failed to get kcp for cluster %s", clusterMeta.Name))
+			return labels
+		}
+
+		kcp := kcpList.Items[0]
+		vmTemplateRef := kcp.Spec.InfrastructureTemplate
+
+		vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
+		key := types.NamespacedName{Namespace: vsphereMachine.Namespace, Name: vmTemplateRef.Name}
+		if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
+			log.Error(err, fmt.Sprintf("failed to get vsphere machine template %s", vmTemplateRef.Name))
+			return labels
+		}
+
+		vmTemplateLabels := util.GetObjLabels(vsphereMachineTemplate)
+		for k, v := range vmTemplateLabels {
+			labels[k] = v
 		}
 	}
 
