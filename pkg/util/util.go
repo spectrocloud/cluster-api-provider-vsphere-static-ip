@@ -2,32 +2,19 @@ package util
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+
+	"github.com/go-logr/logr"
 
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
 )
-
-func GetIPPoolNamespacedName(meta metav1.ObjectMeta) types.NamespacedName {
-	poolName, ok := meta.Annotations[ipam.ClusterIPPoolGroupKey]
-	if !ok || poolName == "" {
-		//default to cluster name
-		poolName = meta.Name
-	}
-
-	poolNamespace, ok := meta.Annotations[ipam.ClusterIPPoolNamespaceKey]
-	if !ok || poolNamespace == "" {
-		//default to cluster namespace
-		poolNamespace = meta.Namespace
-	}
-	return types.NamespacedName{Namespace: poolNamespace, Name: poolName}
-}
 
 func IsMachineIPAllocationDHCP(devices []infrav1.NetworkDeviceSpec) bool {
 	isDHCP := true
@@ -134,6 +121,28 @@ func ConvertToLabelFormat(s string) string {
 	return strings.ReplaceAll(strings.ToLower(s), " ", "-")
 }
 
+func FilterInvalidChar(log logr.Logger, label string) string {
+	errs := utilvalidation.IsValidLabelValue(label)
+	if len(errs) != 0 {
+		label = strings.ToLower(label)
+		// DNS 1123 regex
+		re := regexp.MustCompile("[a-z0-9]([-a-z0-9]*[a-z0-9])?")
+		matches := re.FindAllString(label, -1)
+		fixedLabel := strings.Join(matches, "-")
+		log.V(0).Info("invalid pool name from cloudconfig, autofix", "original", label, "fixedLabel", fixedLabel)
+		return fixedLabel
+	}
+	return label
+}
+
 func GetFormattedClaimName(ownerName string, deviceCount int) string {
 	return fmt.Sprintf("%s-%d", ownerName, deviceCount)
+}
+
+func GetObjLabels(obj runtime.Object) map[string]string {
+	metaa, err := meta.Accessor(obj)
+	if err != nil {
+		return nil
+	}
+	return metaa.GetLabels()
 }

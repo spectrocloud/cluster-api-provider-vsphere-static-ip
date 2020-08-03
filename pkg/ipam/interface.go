@@ -17,8 +17,8 @@ type IPAddressManager interface {
 	// releases static ip back to the ip pool
 	DeallocateIP(name string, pool IPPool, ownerObj runtime.Object) error
 
-	// gets an available ip pool for a given network
-	GetAvailableIPPool(clusterMeta metav1.ObjectMeta, networkName string) (IPPool, error)
+	// gets an available ip pool in the cluster namespace
+	GetAvailableIPPool(poolMatchLabels map[string]string, clusterMeta metav1.ObjectMeta) (IPPool, error)
 }
 
 type IPAddress interface {

@@ -21,12 +21,19 @@ import (
 	"fmt"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	infrautilv1 "sigs.k8s.io/cluster-api-provider-vsphere/pkg/util"
+
+	"sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/factory"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	_ "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/metal3io"
@@ -131,7 +138,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			continue
 		}
 
-		ipPool, err := ipamFunc.GetAvailableIPPool(cluster.ObjectMeta, dev.NetworkName)
+		matchLabels := getMatchLabels(r.Client, cluster.ObjectMeta, vsphereMachine, r.Log)
+		ipPool, err := ipamFunc.GetAvailableIPPool(matchLabels, cluster.ObjectMeta)
 		if err != nil {
 			log.Error(err, "failed to get an available IPPool")
 			return &ctrl.Result{}, nil
@@ -185,6 +193,52 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	log.V(0).Info("successfully reconciled IP address for VSphereMachine")
 
 	return &ctrl.Result{}, nil
+}
+
+func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMachine *infrav1.VSphereMachine, log logr.Logger) map[string]string {
+	labels := map[string]string{}
+
+	//match labels are an aggregate of VSphereMachine labels & VSphereMachineTemplate labels
+	vmLabels := util.GetObjLabels(vsphereMachine)
+	for k, v := range vmLabels {
+		labels[k] = v
+	}
+
+	//in case of controlplane vsphereMachines the ippool labels have to be retrieved from the vsphereMachineTemplate
+	if infrautilv1.IsControlPlaneMachine(vsphereMachine) {
+		//labels to select kcp
+		kcpFilter := map[string]string{
+			ipam.ClusterNameKey: clusterMeta.Name,
+		}
+
+		kcpList := &v1alpha3.KubeadmControlPlaneList{}
+		err := cli.List(
+			context.Background(),
+			kcpList,
+			client.InNamespace(vsphereMachine.Namespace),
+			client.MatchingLabels(kcpFilter))
+		if err != nil {
+			log.Error(err, fmt.Sprintf("failed to get kcp for cluster %s", clusterMeta.Name))
+			return labels
+		}
+
+		kcp := kcpList.Items[0]
+		vmTemplateRef := kcp.Spec.InfrastructureTemplate
+
+		vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
+		key := types.NamespacedName{Namespace: vsphereMachine.Namespace, Name: vmTemplateRef.Name}
+		if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
+			log.Error(err, fmt.Sprintf("failed to get vsphere machine template %s", vmTemplateRef.Name))
+			return labels
+		}
+
+		vmTemplateLabels := util.GetObjLabels(vsphereMachineTemplate)
+		for k, v := range vmTemplateLabels {
+			labels[k] = v
+		}
+	}
+
+	return labels
 }
 
 func (r *VSphereMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {
