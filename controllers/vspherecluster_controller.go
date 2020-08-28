@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	clusterutilv1 "sigs.k8s.io/cluster-api/util"
+
 	"github.com/pkg/errors"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/factory"
@@ -51,13 +53,13 @@ func (r *VSphereClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	var res *ctrl.Result
 	var err error
 
-	cluster := &capi.Cluster{}
-	if err := r.Get(ctx, req.NamespacedName, cluster); err != nil {
+	vSphereCluster := &infrav1.VSphereCluster{}
+	if err := r.Get(ctx, req.NamespacedName, vSphereCluster); err != nil {
 		return ctrl.Result{}, util.IgnoreNotFound(err)
 	}
 
-	vSphereCluster := &infrav1.VSphereCluster{}
-	if err := r.Get(ctx, req.NamespacedName, vSphereCluster); err != nil {
+	cluster, err := clusterutilv1.GetOwnerCluster(ctx, r.Client, vSphereCluster.ObjectMeta)
+	if err != nil {
 		return ctrl.Result{}, util.IgnoreNotFound(err)
 	}
 
