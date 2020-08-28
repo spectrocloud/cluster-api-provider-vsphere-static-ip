@@ -83,7 +83,7 @@ func (r *VSphereClusterReconciler) reconcileVSphereClusterControlPlaneEndpoint(c
 	log.V(0).Info("reconcile control plane endpoint address for VSphereCluster")
 
 	if vSphereCluster.Spec.LoadBalancerRef != nil {
-		log.V(0).Info("VSphereCluster is using HAProxyLoadbalancer with IP allocation type DHCP")
+		log.V(0).Info("VSphereCluster is using HAProxyLoadbalancer, skipping reconcile for control plane endpoint")
 		return &ctrl.Result{}, nil
 	}
 
