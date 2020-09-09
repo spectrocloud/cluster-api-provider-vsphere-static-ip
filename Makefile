@@ -54,9 +54,9 @@ uninstall: manifests
 deploy: manifests
 	cd config/manager && kustomize edit set image controller=${STATIC_IP_IMG}
 	kustomize build config/default | kubectl apply -f -
-	@mkdir -p $(MANIFEST_DIR)
 
 manifests: controller-gen ## Generate manifests e.g. CRD, RBAC etc.
+	@mkdir -p $(MANIFEST_DIR)
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	cd config/manager && kustomize edit set image controller=${STATIC_IP_IMG}
 	kustomize build config/default > $(MANIFEST_DIR)/staticip-manifest.yaml
@@ -67,12 +67,16 @@ generate: controller-gen ## Generate code
 bin: generate ## Generate binaries
 	go build -o bin/manager main.go
 
+docker: docker-build docker-push ## Tags docker image and also pushes it to container registry
+
 docker-build: ## Build the docker image for controller-manager
 	docker build . -t ${STATIC_IP_IMG}
 
 docker-push: ## Push the docker image
 	docker push ${STATIC_IP_IMG}
 
+docker-rmi: ## Remove the local docker image
+	docker rmi ${STATIC_IP_IMG}
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
