@@ -2,7 +2,7 @@
 .DEFAULT_GOAL:=help
 
 VERSION_SUFFIX ?= -dev
-PROD_VERSION ?= 0.7.4${VERSION_SUFFIX}
+PROD_VERSION ?= 1.2.0${VERSION_SUFFIX}
 PROD_BUILD_ID ?= latest
 
 STATIC_IP_IMG ?= "gcr.io/spectro-common-dev/${USER}/capv-static-ip:latest"
