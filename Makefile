@@ -15,7 +15,7 @@ MANIFEST_DIR=_build/manifests
 export CURRENT_DIR=${CURDIR}
 
 
-all: generate manifests static bin
+all: generate manifest static bin
 
 ## --------------------------------------
 ## Help
