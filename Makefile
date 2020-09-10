@@ -32,30 +32,34 @@ vet: ## Run go vet against code
 lint: ## Run golangci-lint  against code
 	golangci-lint run    ./...  --timeout 10m  --tests=false
 
-test: generate fmt vet manifests ## Run tests
+test: generate fmt vet manifest ## Run tests
 	go test ./... -coverprofile cover.out
 
 manager: generate fmt vet ## Build manager binary
 	go build -o bin/manager main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-run: generate fmt vet manifests
+run: generate fmt vet manifest
 	go run ./main.go
 
 # Install CRDs into a cluster
-install: manifests
+install: manifest
 	kustomize build config/crd | kubectl apply -f -
 
 # Uninstall CRDs from a cluster
-uninstall: manifests
+uninstall: manifest
 	kustomize build config/crd | kubectl delete -f -
 
+update-version: ## Update the version file with version info
+	echo "VERSION=$(PROD_VERSION)"      > config/manager/version
+	echo "BUILD_ID=$(PROD_BUILD_ID)"   >> config/manager/version
+
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-deploy: manifests
+deploy: manifest
 	cd config/manager && kustomize edit set image controller=${STATIC_IP_IMG}
 	kustomize build config/default | kubectl apply -f -
 
-manifests: controller-gen ## Generate manifests e.g. CRD, RBAC etc.
+manifest: update-version controller-gen ## Generate manifests e.g. CRD, RBAC etc.
 	@mkdir -p $(MANIFEST_DIR)
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 	cd config/manager && kustomize edit set image controller=${STATIC_IP_IMG}
@@ -77,6 +81,9 @@ docker-push: ## Push the docker image
 
 docker-rmi: ## Remove the local docker image
 	docker rmi ${STATIC_IP_IMG}
+
+version: ## Prints version of current make
+	@echo $(PROD_VERSION)
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))

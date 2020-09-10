@@ -6,3 +6,8 @@ images:
 - name: controller
   newName: gcr.io/spectro-common-dev/zulfi/capv-static-ip
   newTag: latest
+
+configMapGenerator:
+- envs:
+  - version
+  name: version-info
