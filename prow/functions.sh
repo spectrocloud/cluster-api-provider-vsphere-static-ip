@@ -226,5 +226,5 @@ create_release_manifest() {
 
 export REPO_NAME=cluster-api-provider-vsphere-static-ip
 set_image_tag
-export STATIC_IP_IMG=${DOCKER_REGISTRY}/${IMG_LOC}//capv-static-ip:${IMG_TAG}
+export STATIC_IP_IMG=${DOCKER_REGISTRY}/${IMG_LOC}/capv-static-ip:${IMG_TAG}
 IMAGES_LIST="${STATIC_IP_IMG}"
