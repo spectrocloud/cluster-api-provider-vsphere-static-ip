@@ -36,6 +36,14 @@ rules:
   - list
   - watch
 - apiGroups:
+  - controlplane.cluster.x-k8s.io
+  resources:
+  - kubeadmcontrolplanes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - infrastructure.cluster.x-k8s.io
   resources:
   - haproxyloadbalancers
@@ -93,6 +101,14 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - infrastructure.cluster.x-k8s.io
+  resources:
+  - vspheremachinetemplates
+  verbs:
+  - get
+  - list
+  - watch
 - apiGroups:
   - ipam.metal3.io
   resources:
