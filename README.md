@@ -1,9 +1,30 @@
-# cluster-api-provider-vsphere-static-ip
-Static IP support for cluster-api-provider-vsphere(CAPV).
+# Cluster API Provider vSphere Static IP
 
-1) CAPV has support to assign a static IP to the VSphereMachine. But CAPI does not support using a MachineDeployment to generate a VSphereMachine with static IP.
-If DHCP is disabled, the CAPV controllers will wait for static IPs to be available and then continue to provision VMs.
+This repository contains controllers to integrate [Kubernetes Cluster API Provider vSphere](https://github.com/kubernetes-sigs/cluster-api-provider-vsphere) with the different IPAM solutions. [Metal3 IP Address Manager](https://github.com/metal3-io/ip-address-manager) is currently the default IPAM solution that is integrated.
 
-2) CAPV uses VIP as the default control plane endpoint. If control plane endpoint is not set in the VSphereCluster, CAPV controllers will wait for the control plane endpoint host to be available. 
+## Compatibility with Cluster API
 
-The cluster-api-provider-static-ip service provides controllers to fetch static IPs from the available IP pools and to allocate these static IPs to the VSphereCluster and VSphereMachine objects.
+| IPAM version      | CAPV version     | Cluster API version |
+|-------------------|-------------------|---------------------|
+| v1alpha1 (v0.1.X) | v1alpha3 (v0.7.1) | v1alpha3 (v0.3.X)   |
+ 
+## Documentation
+
+See the [Workflow Documentation](docs/workflow.md) for a description of the end-to-end flow.
+ 
+## Deployment
+
+### Deploy cluster API Provider vSphere static IP
+
+```sh
+    make deploy
+```
+
+### Run locally
+
+```sh
+    kubectl scale -n capv-system deployment.v1.apps/capv-static-ip-controller-manager \
+      --replicas 0
+    make run
+```
+ 
