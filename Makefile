@@ -15,7 +15,7 @@ MANIFEST_DIR=_build/manifests
 export CURRENT_DIR=${CURDIR}
 
 
-all: generate manifests static bin
+all: generate manifests static bin test
 
 ## --------------------------------------
 ## Help
@@ -32,8 +32,15 @@ vet: ## Run go vet against code
 lint: ## Run golangci-lint  against code
 	golangci-lint run    ./...  --timeout 10m  --tests=false
 
-test: generate fmt vet manifests ## Run tests
-	go test ./... -coverprofile cover.out
+test: test-integration ## Run tests
+	$(GOCOVMERGE) $(COVER_DIR)/*.out > $(COVER_DIR)/out.all
+	go tool cover -func=$(COVER_DIR)/out.all -o $(COVER_DIR)/cover.func
+	go tool cover -html=$(COVER_DIR)/out.all -o $(COVER_DIR)/cover.html
+
+test-integration:  ## Run integration tests
+	@mkdir -p $(COVER_DIR)
+	go test -v -covermode=count -coverprofile=$(COVER_DIR)/integration.out --coverpkg=$(COVER_PKGS) ./tests/integration
+
 
 manager: generate fmt vet ## Build manager binary
 	go build -o bin/manager main.go

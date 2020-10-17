@@ -1,0 +1,34 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: VSphereCluster
+metadata:
+  name: capi-quickstart
+  namespace: default
+  ownerReferences:
+  - apiVersion: cluster.x-k8s.io/v1alpha3
+    kind: Cluster
+    name: capi-quickstart
+    uid: "UUID"
+spec:
+  cloudProviderConfiguration:
+    global:
+      insecure: true
+      secretName: cloud-provider-vsphere-credentials
+      secretNamespace: kube-system
+    network:
+      name: VM Network
+    providerConfig:
+      cloud:
+        controllerImage: gcr.io/cloud-provider-vsphere/cpi/release/manager:v1.2.0
+    virtualCenter:
+      10.10.10.10:
+        datacenters: Datacenter
+    workspace:
+      datacenter: Datacenter
+      datastore: Datastore
+      folder: Folder
+      resourcePool: RPool
+      server: 10.10.10.10
+  controlPlaneEndpoint:
+    host: 10.10.100.10
+    port: 6443
+  server: 10.10.10.10

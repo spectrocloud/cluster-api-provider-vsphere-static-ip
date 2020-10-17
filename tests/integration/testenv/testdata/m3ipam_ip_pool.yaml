@@ -1,0 +1,19 @@
+apiVersion: ipam.metal3.io/v1alpha1
+kind: IPPool
+metadata:
+  name: ip-pool-pool1
+  namespace: default
+  labels:
+    cluster.x-k8s.io/ip-pool-group: dev-cluster1-masterpool-vsan-cluster
+    cluster.x-k8s.io/network-name: vm-network
+spec:
+  clusterName: capi-quickstart
+  pools:
+    - start: 10.10.100.20
+      end: 10.10.100.30
+      prefix: 18
+      gateway: 10.10.100.1
+  prefix: 18
+  gateway: 10.10.100.1
+  namePrefix: capi-quickstart
+  dnsServers: [8.8.8.8]
