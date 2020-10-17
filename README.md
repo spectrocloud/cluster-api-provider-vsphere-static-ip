@@ -4,9 +4,9 @@ This repository contains controllers to integrate [Kubernetes Cluster API Provid
 
 ## Compatibility with Cluster API
 
-| IPAM version      | CAPV version     | Cluster API version |
+| M3IPAM version    | CAPV version     | Cluster API version |
 |-------------------|-------------------|---------------------|
-| v1alpha1 (v0.1.X) | v1alpha3 (v0.7.1) | v1alpha3 (v0.3.X)   |
+| v1alpha1 (v0.0.4) | v1alpha3 (v0.7.1) | v1alpha3 (v0.3.X)   |
  
 ## Documentation
 
