@@ -3,18 +3,21 @@ package integration
 import (
 	"os"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/metal3-io/ip-address-manager/ipam"
-
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	. "github.com/metal3-io/ip-address-manager/controllers"
+	"github.com/metal3-io/ip-address-manager/ipam"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/controllers"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
+	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
+	kubeadmv3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -40,8 +43,15 @@ func initVariables() {
 		Log:    ctrl.Log.WithName("controllers").WithName("VSphereCluster"),
 	}
 
+	objects := []runtime.Object{}
+	objects = append(objects, tm.M3IpamIPPool)
+	objects = append(objects, tm.Cluster)
+	objects = append(objects, tm.Machine)
+	objects = append(objects, tm.KubeadmControlPlane)
+
+	ipamClient := fake.NewFakeClientWithScheme(setupScheme(), objects...)
 	m3ipamReconciler = &IPPoolReconciler{
-		Client:         tm.GetClient(),
+		Client:         ipamClient,
 		Log:            ctrl.Log.WithName("controllers").WithName("IPPool"),
 		ManagerFactory: ipam.NewManagerFactory(tm.GetClient()),
 	}
@@ -61,6 +71,20 @@ func initVariables() {
 			Name:      "ip-pool-pool1",
 		},
 	}
+}
+
+func setupScheme() *runtime.Scheme {
+	s := runtime.NewScheme()
+	err := capiv1alpha3.AddToScheme(s)
+	Expect(err).NotTo(HaveOccurred())
+	err = capivsphere.AddToScheme(s)
+	Expect(err).NotTo(HaveOccurred())
+	err = ipamv1.AddToScheme(s)
+	Expect(err).ToNot(HaveOccurred())
+	err = kubeadmv3.AddToScheme(s)
+	Expect(err).ToNot(HaveOccurred())
+
+	return s
 }
 
 func createPrerequisiteResources() {
@@ -92,7 +116,7 @@ func verifyVSphereMachineStaticIPAllocation() {
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 
-	By("ipam reconcile without an IPClaim should skip creation of IPAddress")
+	By("ipam reconcile without any IPClaim should skip creation of IPAddress")
 	result, err = m3ipamReconciler.Reconcile(ipamctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
@@ -103,7 +127,7 @@ func verifyVSphereMachineStaticIPAllocation() {
 
 	cpTemplateName := "control-plane-template"
 
-	By("creation of control plane vsphere machine template with ip-pool-name label should succeed")
+	By("creation of control-plane vsphere machine template with ip-pool-name label should succeed")
 	cpVSphereMachineTemp := tm.VSphereMachineTemplate.DeepCopy()
 	cpVSphereMachineTemp.Name = cpTemplateName
 	cpVSphereMachineTemp.SetLabels(map[string]string{LabelIPPoolName: "ip-pool-pool1"})
@@ -114,7 +138,7 @@ func verifyVSphereMachineStaticIPAllocation() {
 	kcp.Spec.InfrastructureTemplate.Name = cpTemplateName
 	Expect(tm.GetClient().Create(ctx, kcp)).To(Succeed())
 
-	By("creation of control plane vsphere machine with DHCP set to false should succeed")
+	By("creation of control-plane vsphere machine with DHCP set to false should succeed")
 	machine := tm.Machine.DeepCopy()
 	machine.Name = "cp-machine"
 	Expect(tm.GetClient().Create(ctx, machine)).To(Succeed())

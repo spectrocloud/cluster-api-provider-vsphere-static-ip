@@ -15,15 +15,16 @@ var (
 	m3ipamReconciler         *IPPoolReconciler
 	log                      = klogr.New().WithName("allocate-static-ip-test")
 	key                      client.ObjectKey
+	testClient               client.Client
 	ctrlreq                  ctrl.Request
 	ipamctrlreq              ctrl.Request
 )
 
-var _ = Describe("VSphereMachine Controller", func() {
+var _ = Describe("Static IP Allocation", func() {
 	BeforeEach(func() {})
 	AfterEach(func() {})
 
-	Context("Reconcile vSphere machines", func() {
+	Context("Reconcile vSphere resources", func() {
 		It("should not error", func() {
 			initVariables()
 			createPrerequisiteResources()
