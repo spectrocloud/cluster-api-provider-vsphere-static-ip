@@ -11,11 +11,12 @@ OVERLAY ?= base
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 COVER_DIR=_build/cov
+COVER_PKGS=$(shell go list ./... | grep -vE 'tests|fake|cmd|hack|config' | tr "\n" ",")
 MANIFEST_DIR=_build/manifests
 export CURRENT_DIR=${CURDIR}
 
 
-all: generate manifests static bin
+all: generate manifests static bin test
 
 ## --------------------------------------
 ## Help
@@ -32,8 +33,17 @@ vet: ## Run go vet against code
 lint: ## Run golangci-lint  against code
 	golangci-lint run    ./...  --timeout 10m  --tests=false
 
-test: generate fmt vet manifests ## Run tests
-	go test ./... -coverprofile cover.out
+test: test-integration gocovmerge gocover ## Run tests
+	$(GOCOVMERGE) $(COVER_DIR)/*.out > $(COVER_DIR)/coverage.out
+	go tool cover -func=$(COVER_DIR)/coverage.out -o $(COVER_DIR)/cover.func
+	go tool cover -html=$(COVER_DIR)/coverage.out -o $(COVER_DIR)/cover.html
+	go tool cover -func $(COVER_DIR)/coverage.out | grep total
+
+test-integration:  ## Run integration tests
+	@mkdir -p $(COVER_DIR)
+	rm -f $(COVER_DIR)/*
+	go test -v -covermode=count -coverprofile=$(COVER_DIR)/int.out --coverpkg=$(COVER_PKGS) ./tests/...
+
 
 manager: generate fmt vet ## Build manager binary
 	go build -o bin/manager main.go
@@ -100,4 +110,22 @@ ifeq (, $(shell which controller-gen))
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
+endif
+
+gocovmerge:
+ifeq (, $(shell which gocovmerge))
+	go get github.com/wadey/gocovmerge
+	go mod tidy
+GOCOVMERGE=$(GOBIN)/gocovmerge
+else
+GOCOVMERGE=$(shell which gocovmerge)
+endif
+
+gocover:
+ifeq (, $(shell which cover))
+	go get golang.org/x/tools/cmd/cover
+	go mod tidy
+GOCOVER=$(GOBIN)/cover
+else
+GOCOVER=$(shell which cover)
 endif

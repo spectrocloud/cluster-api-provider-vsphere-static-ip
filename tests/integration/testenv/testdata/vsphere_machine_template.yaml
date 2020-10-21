@@ -1,0 +1,25 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: VSphereMachineTemplate
+metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: capi-quickstart
+  name: capi-quickstart
+  namespace: default
+spec:
+  template:
+    spec:
+      cloneMode: linkedClone
+      datacenter: Datacenter
+      datastore: Datastore
+      diskGiB: 25
+      folder: Folder
+      memoryMiB: 8192
+      network:
+        devices:
+        - dhcp4: true
+          dhcp6: false
+          networkName: VM Network
+      numCPUs: 2
+      resourcePool: RPool
+      server: 10.10.10.10
+      template: ubuntu-1804-kube-v1.17.3

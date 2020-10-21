@@ -1,0 +1,25 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1alpha3
+kind: VSphereMachine
+metadata:
+  name: capi-quickstart
+  namespace: default
+  ownerReferences:
+  - apiVersion: cluster.x-k8s.io/v1alpha3
+    kind: Machine
+    name: capi-quickstart
+    uid: "UUID"
+spec:
+  cloneMode: fullClone
+  datacenter: Datacenter
+  datastore: Datastore
+  folder: Folder
+  memoryMiB: 4096
+  numCPUs: 2
+  diskGiB: 20
+  network:
+    devices:
+    - networkName: VM Network
+      dhcp4: true
+      dhcp6: true
+  resourcePool: RPool
+  template: test-template

@@ -181,9 +181,6 @@ func createIPClaim(cli client.Client, pool ipam.IPPool, claimName string, ownerR
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      claimName,
 			Namespace: pool.GetNamespace(),
-			Labels: map[string]string{
-				ipam.ClusterNameKey: pool.GetName(),
-			},
 		},
 		Spec: ipamv1.IPClaimSpec{
 			Pool: util.GetObjRef(ipPool),
@@ -191,13 +188,15 @@ func createIPClaim(cli client.Client, pool ipam.IPPool, claimName string, ownerR
 	}
 
 	//set owner ref
-	ref := metav1.OwnerReference{
-		APIVersion: ownerRef.APIVersion,
-		Kind:       ownerRef.Kind,
-		Name:       ownerRef.Name,
-		UID:        ownerRef.UID,
+	if len(ownerRef.APIVersion) > 0 && len(ownerRef.Kind) > 0 {
+		ref := metav1.OwnerReference{
+			APIVersion: ownerRef.APIVersion,
+			Kind:       ownerRef.Kind,
+			Name:       ownerRef.Name,
+			UID:        ownerRef.UID,
+		}
+		ipclaim.SetOwnerReferences([]metav1.OwnerReference{ref})
 	}
-	ipclaim.SetOwnerReferences([]metav1.OwnerReference{ref})
 
 	if err := cli.Create(context.Background(), ipclaim); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
