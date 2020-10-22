@@ -57,12 +57,12 @@ commenter() {
 	export GITHUB_COMMENT_TYPE=pr
 	export GITHUB_PR_ISSUE_NUMBER=$PULL_NUMBER
 	export GITHUB_COMMENT_FORMAT="Build logs for Job ${JOB_NAME} can be found here: {{.}}"
-	export GITHUB_COMMENT="http://mayflower.spectrocloud.com/log?job=${JOB_NAME}&id=${BUILD_NUMBER}"
+	export GITHUB_COMMENT="http://34.120.121.77/log?job=${JOB_NAME}&id=${BUILD_NUMBER}"
 	github-commenter
 }
 
 set_release_vars() {
-	RELEASE_DIR=gs://spectro-prow-artifacts/release/${REPO_NAME}
+	RELEASE_DIR=gs://capi-prow-artifacts/release/${REPO_NAME}
 	VERSION_DIR=${RELEASE_DIR}/${PROD_VERSION}
 	MARKER_FILE=marker
 }
@@ -118,49 +118,6 @@ run_sonar_lint() {
 	fi
 }
 
-
-run_sonar_scan() {
-	print_step 'Run sonar-scanner for coverage and static code analysis'
-	set +x
-	if [[ -d _build/cov ]]; then
-		cp -r _build/cov ${ARTIFACTS}/cov
-	fi 
-	/sonar/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=${REPO_NAME} -Dsonar.sources=. -Dsonar.host.url=${SONARQUBE_URL} -Dsonar.login=${SONAR_SCAN_TOKEN}
-	set -x
-}
-
-#------------------------------------/
-# Scan code for 3rd party licences   /
-# Variables required are set in CI   /
-#------------------------------------/
-run_license_scan() {
-	set +e 
-	print_step 'Run license scan'
-	COMPL_DIR=${ARTIFACTS}/compliance
-	LICENSE_SCAN_DIR=${COMPL_DIR}/license_scan
-	ISSUES_LIST=${LICENSE_SCAN_DIR}/issues.txt
-	DEP_LIST=${LICENSE_SCAN_DIR}/dependencies.txt
-	LIC_LIST=${LICENSE_SCAN_DIR}/licenses.txt
-	mkdir -p ${LICENSE_SCAN_DIR}
-
-	fossa init
-
-	grep "project: ${REPO_NAME}" .fossa.yml
-	if [[ $? -eq 0 ]]; then
-		# This command will not work on MAC . Use a '' after -i in MAC
-  		sed -i 's?project: \(.*\)?project: https://github.com/spectrocloud/\1?' .fossa.yml
-	fi
-	fossa analyze
-	fossa test >> ${ISSUES_LIST}
-	fossa report dependencies >> ${DEP_LIST}
-	fossa report licenses >> ${LIC_LIST}
-
-        gsutil cp -r $LIC_LIST gs://spectro-prow-artifacts/compliance/$DATE/source/license/${REPO_NAME}.txt
-        gsutil cp -r $ISSUES_LIST gs://spectro-prow-artifacts/compliance/$DATE/source/sast/${REPO_NAME}.txt
-
-	set -e 
-}
-
 #----------------------------------------------/
 # Scan containers with Anchore and Trivy       /
 # Variables required are set in CI             /
@@ -182,8 +139,8 @@ run_container_scan() {
  	        trivy -f json ${EACH_IMAGE} >> ${TRIVY_JSON}
 	done
 
-	gsutil cp -r $TRIVY_LIST gs://spectro-prow-artifacts/compliance/$DATE/container/${REPO_NAME}.txt
-	gsutil cp -r $TRIVY_JSON gs://spectro-prow-artifacts/compliance/$DATE/container/${REPO_NAME}.json
+	gsutil cp -r $TRIVY_LIST gs://capi-prow-artifacts/compliance/$DATE/container/${REPO_NAME}.txt
+	gsutil cp -r $TRIVY_JSON gs://capi-prow-artifacts/compliance/$DATE/container/${REPO_NAME}.json
 	set -e 
 }
 
