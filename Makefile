@@ -131,4 +131,4 @@ GOCOVER=$(shell which cover)
 endif
 
 version: ## Prints version of current make
-        @echo $(PROD_VERSION)
+	@echo $(PROD_VERSION)
