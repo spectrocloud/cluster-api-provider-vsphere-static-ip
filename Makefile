@@ -129,3 +129,6 @@ GOCOVER=$(GOBIN)/cover
 else
 GOCOVER=$(shell which cover)
 endif
+
+version: ## Prints version of current make
+        @echo $(PROD_VERSION)
