@@ -68,6 +68,11 @@ run_tests() {
 
 create_images() {
 	print_step "Create and Push the images"
+
+    gcloud auth activate-service-account --key-file /etc/gcs-push-volume/spectro-capi-external-e059e4c3797d.json 
+    cat /etc/gcs-push-volume/spectro-capi-external-e059e4c3797d.json | docker login -u _json_key --password-stdin https://gcr.io
+    gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
+
 	#sleep 3600
 	make docker
 }
