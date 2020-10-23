@@ -81,8 +81,7 @@ create_manifest() {
 	project_name=${REPO_NAME}
 	print_step "Create manifest files and copy to artifacts folder"
 	# Manifest output has all secrets printed. Mask the output
-	sleep 1800
-	make manifest > /dev/null 2>&1
+	make manifests > /dev/null 2>&1
 
 	mkdir -p ${ARTIFACTS}/${project_name}/build
 	cp -r config ${ARTIFACTS}/${project_name}/build/kustomize
