@@ -68,7 +68,7 @@ run_tests() {
 
 create_images() {
 	print_step "Create and Push the images"
-	sleep 3600
+	#sleep 3600
 	make docker
 }
 
