@@ -24,14 +24,14 @@ set_image_tag() {
 	    IMG_LOC='pr'	
 	    IMG_TAG=${PULL_NUMBER}
 	    PROD_BUILD_ID=${IMG_TAG}	
-            IMG_PATH=spectro-images/${IMG_LOC}
+            IMG_PATH=spectro-capi-external/${IMG_LOC}
         fi
 	if [[ ${JOB_TYPE} == 'periodic' ]]; then
 	    VERSION_SUFFIX="-$(date +%m%d%y)"
 	    IMG_LOC='daily'	
 	    IMG_TAG=$(date +%Y%m%d.%H%M)
 	    PROD_BUILD_ID=${IMG_TAG}	
-            IMG_PATH=spectro-images/${IMG_LOC}
+            IMG_PATH=spectro-capi-external/${IMG_LOC}
 	fi
 	if [[ ${SPECTRO_RELEASE} ]] && [[ ${SPECTRO_RELEASE} == "yes" ]]; then
 	    export VERSION_SUFFIX=""
