@@ -50,17 +50,6 @@ set_image_tag() {
 	export PROD_VERSION=$(make version)
 }
 
-commenter() {
-	export GITHUB_TOKEN=$ACCESS_TOKEN_PWD
-	export GITHUB_OWNER=$REPO_OWNER
-	export GITHUB_REPO=$REPO_NAME
-	export GITHUB_COMMENT_TYPE=pr
-	export GITHUB_PR_ISSUE_NUMBER=$PULL_NUMBER
-	export GITHUB_COMMENT_FORMAT="Build logs for Job ${JOB_NAME} can be found here: {{.}}"
-	export GITHUB_COMMENT="http://34.120.121.77/log?job=${JOB_NAME}&id=${BUILD_NUMBER}"
-	github-commenter
-}
-
 set_release_vars() {
 	RELEASE_DIR=gs://capi-prow-artifacts/release/${REPO_NAME}
 	VERSION_DIR=${RELEASE_DIR}/${PROD_VERSION}
