@@ -68,12 +68,6 @@ run_tests() {
 
 create_images() {
 	print_step "Create and Push the images"
-
-    gcloud auth activate-service-account --key-file /etc/gcs-push-volume/spectro-capi-external-e059e4c3797d.json 
-    cat /etc/gcs-push-volume/spectro-capi-external-e059e4c3797d.json | docker login -u _json_key --password-stdin https://gcr.io
-    gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://gcr.io
-
-	#sleep 3600
 	make docker
 }
 
@@ -87,6 +81,7 @@ create_manifest() {
 	project_name=${REPO_NAME}
 	print_step "Create manifest files and copy to artifacts folder"
 	# Manifest output has all secrets printed. Mask the output
+	sleep 1800
 	make manifest > /dev/null 2>&1
 
 	mkdir -p ${ARTIFACTS}/${project_name}/build
