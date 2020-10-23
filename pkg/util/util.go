@@ -2,17 +2,13 @@ package util
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
-
-	"github.com/go-logr/logr"
 
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
 )
 
@@ -119,20 +115,6 @@ func GetObjRef(obj runtime.Object) corev1.ObjectReference {
 func ConvertToLabelFormat(s string) string {
 	//lowercase, replacing '-' for space
 	return strings.ReplaceAll(strings.ToLower(s), " ", "-")
-}
-
-func FilterInvalidChar(log logr.Logger, label string) string {
-	errs := utilvalidation.IsValidLabelValue(label)
-	if len(errs) != 0 {
-		label = strings.ToLower(label)
-		// DNS 1123 regex
-		re := regexp.MustCompile("[a-z0-9]([-a-z0-9]*[a-z0-9])?")
-		matches := re.FindAllString(label, -1)
-		fixedLabel := strings.Join(matches, "-")
-		log.V(0).Info("invalid pool name from cloudconfig, autofix", "original", label, "fixedLabel", fixedLabel)
-		return fixedLabel
-	}
-	return label
 }
 
 func GetFormattedClaimName(ownerName string, deviceCount int) string {
