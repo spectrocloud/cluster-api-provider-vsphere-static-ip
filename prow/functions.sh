@@ -24,14 +24,14 @@ set_image_tag() {
 	    IMG_LOC='pr'	
 	    IMG_TAG=${PULL_NUMBER}
 	    PROD_BUILD_ID=${IMG_TAG}	
-            IMG_PATH=spectro-images/${IMG_LOC}
+            IMG_PATH=spectro-capi-external/${IMG_LOC}
         fi
 	if [[ ${JOB_TYPE} == 'periodic' ]]; then
 	    VERSION_SUFFIX="-$(date +%m%d%y)"
 	    IMG_LOC='daily'	
 	    IMG_TAG=$(date +%Y%m%d.%H%M)
 	    PROD_BUILD_ID=${IMG_TAG}	
-            IMG_PATH=spectro-images/${IMG_LOC}
+            IMG_PATH=spectro-capi-external/${IMG_LOC}
 	fi
 	if [[ ${SPECTRO_RELEASE} ]] && [[ ${SPECTRO_RELEASE} == "yes" ]]; then
 	    export VERSION_SUFFIX=""
@@ -48,17 +48,6 @@ set_image_tag() {
 	export IMG_TAG 
 	export VERSION_SUFFIX
 	export PROD_VERSION=$(make version)
-}
-
-commenter() {
-	export GITHUB_TOKEN=$ACCESS_TOKEN_PWD
-	export GITHUB_OWNER=$REPO_OWNER
-	export GITHUB_REPO=$REPO_NAME
-	export GITHUB_COMMENT_TYPE=pr
-	export GITHUB_PR_ISSUE_NUMBER=$PULL_NUMBER
-	export GITHUB_COMMENT_FORMAT="Build logs for Job ${JOB_NAME} can be found here: {{.}}"
-	export GITHUB_COMMENT="http://34.120.121.77/log?job=${JOB_NAME}&id=${BUILD_NUMBER}"
-	github-commenter
 }
 
 set_release_vars() {
@@ -92,7 +81,7 @@ create_manifest() {
 	project_name=${REPO_NAME}
 	print_step "Create manifest files and copy to artifacts folder"
 	# Manifest output has all secrets printed. Mask the output
-	make manifest > /dev/null 2>&1
+	make manifests > /dev/null 2>&1
 
 	mkdir -p ${ARTIFACTS}/${project_name}/build
 	cp -r config ${ARTIFACTS}/${project_name}/build/kustomize

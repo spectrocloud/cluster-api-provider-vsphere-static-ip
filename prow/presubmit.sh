@@ -12,8 +12,6 @@ WD=$(cd $WD; pwd)
 ROOT=$(dirname $WD)
 source prow/functions.sh
 
-commenter
-
 # Exit immediately for non zero status
 set -e
 # Check unset variables
