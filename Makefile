@@ -5,7 +5,7 @@ VERSION_SUFFIX ?= -dev
 PROD_VERSION ?= 0.7.4${VERSION_SUFFIX}
 PROD_BUILD_ID ?= latest
 
-STATIC_IP_IMG ?= "gcr.io/spectro-common-dev/${USER}/capv-static-ip:latest"
+STATIC_IP_IMG ?= "gcr.io/spectro-images/capv-static-ip:latest"
 OVERLAY ?= base
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
@@ -129,3 +129,6 @@ GOCOVER=$(GOBIN)/cover
 else
 GOCOVER=$(shell which cover)
 endif
+
+version: ## Prints version of current make
+	@echo $(PROD_VERSION)

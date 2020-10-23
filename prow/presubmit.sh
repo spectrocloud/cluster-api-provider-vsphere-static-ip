@@ -33,12 +33,10 @@ fi
 
 if [[ ${action} == "code_coverage" ]]; then
     run_sonar_lint
-    run_sonar_scan
 fi
 
 if [[ ${action} == "compliance_scan" ]]; then
     create_images
-    run_license_scan
     run_container_scan
     delete_images
 fi
