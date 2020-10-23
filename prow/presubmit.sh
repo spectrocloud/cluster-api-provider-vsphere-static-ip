@@ -2,8 +2,6 @@
 ########################################
 # Presubmit script triggered by Prow.  #
 ########################################
-# Print command trace
-set -x
 action=$1
 if [[ ! ${action} ]]; then
     action='default'
@@ -18,6 +16,8 @@ source prow/functions.sh
 set -e
 # Check unset variables
 set -u
+# Print command trace
+set -x
 
 build_code
 run_tests
