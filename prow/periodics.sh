@@ -22,11 +22,9 @@ create_images
 create_manifest 
 
 run_sonar_lint
-run_sonar_scan
 
 # Run compliance only on Sunday
 if [[ $(date +%w) == 0 ]]; then
-	run_license_scan
 	run_container_scan
 fi
 
