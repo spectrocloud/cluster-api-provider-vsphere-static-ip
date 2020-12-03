@@ -5,7 +5,7 @@ VERSION_SUFFIX ?= -dev
 PROD_VERSION ?= 0.7.4${VERSION_SUFFIX}
 PROD_BUILD_ID ?= latest
 
-IMG_URL ?= gcr.io/spectro-common-dev/${USER}
+IMG_URL ?= gcr.io/$(shell gcloud config get-value project)/${USER}
 IMG_TAG ?= latest
 STATIC_IP_IMG ?= ${IMG_URL}/capv-static-ip:${IMG_TAG}
 OVERLAY ?= base
