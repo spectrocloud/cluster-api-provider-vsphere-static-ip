@@ -109,7 +109,7 @@ func (m Metal3IPAM) GetAvailableIPPool(poolMatchLabels map[string]string, cluste
 
 	//TODO: refactor searchDomains, once its added in metal3io
 	searchDomains := []string{}
-	if sdList, ok := clusterMeta.Annotations[ipam.SearchDomainsKey]; ok {
+	if sdList, ok := ipPool.Annotations[ipam.SearchDomainsKey]; ok {
 		searchDomains = strings.Split(sdList, ",")
 	}
 

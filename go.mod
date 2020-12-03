@@ -20,4 +20,3 @@ require (
 	sigs.k8s.io/cluster-api-provider-vsphere v0.7.1
 	sigs.k8s.io/controller-runtime v0.5.11
 )
-
