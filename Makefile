@@ -5,7 +5,9 @@ VERSION_SUFFIX ?= -dev
 PROD_VERSION ?= 0.7.4${VERSION_SUFFIX}
 PROD_BUILD_ID ?= latest
 
-STATIC_IP_IMG ?= "gcr.io/spectro-capi-external/capv-static-ip:latest"
+IMG_URL ?= gcr.io/$(shell gcloud config get-value project)/${USER}
+IMG_TAG ?= latest
+STATIC_IP_IMG ?= ${IMG_URL}/capv-static-ip:${IMG_TAG}
 OVERLAY ?= base
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
