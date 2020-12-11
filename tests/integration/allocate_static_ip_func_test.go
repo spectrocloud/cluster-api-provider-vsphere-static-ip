@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/controllers"
+	. "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
@@ -67,7 +68,7 @@ func initVariables() {
 
 	ipamctrlreq = ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: tm.Cluster.Namespace,
 			Name:      "ip-pool-pool1",
 		},
 	}
@@ -103,13 +104,13 @@ func verifyVSphereMachineStaticIPAllocation() {
 	By("creation of machine should succeed")
 	Expect(tm.GetClient().Create(ctx, tm.Machine.DeepCopy())).To(Succeed())
 
-	By("creation of vsphere machine with DHCP set to true should succeed")
+	By("creation of VSphereMachine with DHCP set to true should succeed")
 	Expect(tm.GetClient().Create(ctx, tm.VSphereMachine.DeepCopy())).To(Succeed())
 
-	By("reconcile of vsphere machine with DHCP should skip static IP Allocation")
+	By("reconcile of VSphereMachine with DHCP should skip static IP Allocation")
 	result, err := vSphereMachineReconciler.Reconcile(ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: tm.VSphereMachine.Namespace,
 			Name:      tm.VSphereMachine.Name,
 		},
 	})
@@ -127,7 +128,7 @@ func verifyVSphereMachineStaticIPAllocation() {
 
 	cpTemplateName := "control-plane-template"
 
-	By("creation of control-plane vsphere machine template with ip-pool-name label should succeed")
+	By("creation of control-plane VSphereMachineTemplate with ip-pool-name label should succeed")
 	cpVSphereMachineTemp := tm.VSphereMachineTemplate.DeepCopy()
 	cpVSphereMachineTemp.Name = cpTemplateName
 	cpVSphereMachineTemp.SetLabels(map[string]string{LabelIPPoolName: "ip-pool-pool1"})
@@ -138,41 +139,18 @@ func verifyVSphereMachineStaticIPAllocation() {
 	kcp.Spec.InfrastructureTemplate.Name = cpTemplateName
 	Expect(tm.GetClient().Create(ctx, kcp)).To(Succeed())
 
-	By("creation of control-plane vsphere machine with DHCP set to false should succeed")
-	machine := tm.Machine.DeepCopy()
-	machine.Name = "cp-machine"
-	Expect(tm.GetClient().Create(ctx, machine)).To(Succeed())
-
+	By("creation of control-plane VSphereMachine with DHCP set to false should succeed")
 	vSphereMachineName := "cp-vsphere-machine"
+	createNewVSphereMachine(vSphereMachineName, true)
+
 	vmctrlreq := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: tm.VSphereMachine.Namespace,
 			Name:      vSphereMachineName,
 		},
 	}
-	cpVSphereMachine := tm.VSphereMachine.DeepCopy()
-	cpVSphereMachine.Name = vSphereMachineName
-	cpVSphereMachine.SetLabels(map[string]string{LabelControlPlane: ""})
-	cpVSphereMachine.SetOwnerReferences([]metav1.OwnerReference{
-		{
-			APIVersion: "cluster.x-k8s.io/v1alpha3",
-			Kind:       "Machine",
-			Name:       machine.Name,
-			UID:        machine.UID,
-		},
-	})
 
-	devices := cpVSphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
-	updatedDevices := []infrav1.NetworkDeviceSpec{}
-	for _, dev := range devices {
-		dev.DHCP4 = false
-		dev.DHCP6 = false
-		updatedDevices = append(updatedDevices, dev)
-	}
-	cpVSphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = updatedDevices
-	Expect(tm.GetClient().Create(ctx, cpVSphereMachine)).To(Succeed())
-
-	By("first vsphere machine reconcile should create IPClaim and wait for IPAddress")
+	By("first VSphereMachine reconcile should create IPClaim and wait for IPAddress")
 	result, err = vSphereMachineReconciler.Reconcile(vmctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(Not(BeZero()))
@@ -190,18 +168,181 @@ func verifyVSphereMachineStaticIPAllocation() {
 	Expect(len(ipAddressList.Items)).To(Equal(1))
 	Expect(string(ipAddressList.Items[0].Spec.Address)).To(Equal("10.10.100.20"))
 
-	By("second vsphere machine reconcile should allocated the IPAddress to the waiting vsphere machine")
+	By("second VSphereMachine reconcile should allocated the IPAddress to the waiting VSphereMachine")
 	result, err = vSphereMachineReconciler.Reconcile(vmctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 
 	updatedCPVSphereMachine := &infrav1.VSphereMachine{}
 	Expect(tm.GetClient().Get(ctx, client.ObjectKey{
-		Namespace: cpVSphereMachine.Namespace,
-		Name:      cpVSphereMachine.Name,
+		Namespace: tm.VSphereMachine.Namespace,
+		Name:      vSphereMachineName,
 	}, updatedCPVSphereMachine)).To(Succeed())
 	updatedCPVSphereMachineNw := updatedCPVSphereMachine.Spec.Network
 	Expect(updatedCPVSphereMachineNw.Devices[0].IPAddrs[0]).To(Equal("10.10.100.20/18"))
+}
+
+func verifyNameserversAndSearchDomainsAllocation() {
+	logInfoLine("verifyNameserversAndSearchDomainsAllocation")
+
+	By("VSphereMachine's network device should not be configured with nameservers and searchDomains, " +
+		"if these values are not configured in the IPPool and VSphereMachineTemplate")
+	vSphereMachineName := "cp-vsphere-machine"
+	existingCPVSphereMachine := &infrav1.VSphereMachine{}
+	Expect(tm.GetClient().Get(ctx, client.ObjectKey{
+		Namespace: tm.VSphereMachine.Namespace,
+		Name:      vSphereMachineName,
+	}, existingCPVSphereMachine)).To(Succeed())
+	Expect(existingCPVSphereMachine.Spec.Network.Devices[0].Nameservers).To(BeEmpty())
+	Expect(existingCPVSphereMachine.Spec.Network.Devices[0].SearchDomains).To(BeEmpty())
+
+	By("resetting VSphereMachine's ipaddress should succeed")
+	existingCPVSphereMachine.Spec.Network.Devices[0].IPAddrs = []string{}
+	Expect(tm.GetClient().Update(ctx, existingCPVSphereMachine)).To(Succeed())
+
+	By("updating the IPPool with nameservers and searchDomains should succeed")
+	existingIPool := &ipamv1.IPPool{}
+	Expect(tm.GetClient().Get(ctx, client.ObjectKey{
+		Namespace: tm.M3IpamIPPool.Namespace,
+		Name:      tm.M3IpamIPPool.Name,
+	}, existingIPool)).To(Succeed())
+
+	//updating nameservers and searchDomains
+	existingIPool.Spec.DNSServers = []ipamv1.IPAddressStr{"8.8.8.8"}
+	existingIPool.SetAnnotations(map[string]string{SearchDomainsKey: "example.com"})
+	Expect(tm.GetClient().Update(ctx, existingIPool)).To(Succeed())
+
+	vmctrlreq := ctrl.Request{
+		NamespacedName: client.ObjectKey{
+			Namespace: existingCPVSphereMachine.Namespace,
+			Name:      existingCPVSphereMachine.Name,
+		},
+	}
+
+	By("VSphereMachine reconcile should configure nameserver and searchDomain values from the IPPool," +
+		" in the VSphereMachine's network device")
+	result, err := vSphereMachineReconciler.Reconcile(vmctrlreq)
+	Expect(err).To(BeNil())
+	Expect(result.RequeueAfter).To(BeZero())
+
+	existingCPVSphereMachine = &infrav1.VSphereMachine{}
+	Expect(tm.GetClient().Get(ctx, client.ObjectKey{
+		Namespace: tm.VSphereMachine.Namespace,
+		Name:      vSphereMachineName,
+	}, existingCPVSphereMachine)).To(Succeed())
+	Expect(existingCPVSphereMachine.Spec.Network.Devices[0].Nameservers[0]).To(Equal("8.8.8.8"))
+	Expect(existingCPVSphereMachine.Spec.Network.Devices[0].SearchDomains[0]).To(Equal("example.com"))
+
+	By("resetting VSphereMachine's ipaddress should succeed")
+	existingCPVSphereMachine.Spec.Network.Devices[0].IPAddrs = []string{}
+	Expect(tm.GetClient().Update(ctx, existingCPVSphereMachine)).To(Succeed())
+
+	By("resetting IPPool's nameservers and searchDomains should succeed")
+	//updating nameservers and searchDomains
+	existingIPool.Spec.DNSServers = []ipamv1.IPAddressStr{}
+	existingIPool.SetAnnotations(map[string]string{})
+	Expect(tm.GetClient().Update(ctx, existingIPool)).To(Succeed())
+
+	By("VSphereMachine reconcile without configured nameservers and searchDomains values from the IPPool" +
+		" should reflect in empty values in the VSphereMachine's network device")
+	result, err = vSphereMachineReconciler.Reconcile(vmctrlreq)
+	Expect(err).To(BeNil())
+	Expect(result.RequeueAfter).To(BeZero())
+
+	existingCPVSphereMachine = &infrav1.VSphereMachine{}
+	Expect(tm.GetClient().Get(ctx, client.ObjectKey{
+		Namespace: tm.VSphereMachine.Namespace,
+		Name:      vSphereMachineName,
+	}, existingCPVSphereMachine)).To(Succeed())
+	Expect(existingCPVSphereMachine.Spec.Network.Devices[0].Nameservers).To(BeEmpty())
+	Expect(existingCPVSphereMachine.Spec.Network.Devices[0].SearchDomains).To(BeEmpty())
+
+	By("resetting VSphereMachine's ipaddress should succeed")
+	existingCPVSphereMachine.Spec.Network.Devices[0].IPAddrs = []string{}
+	Expect(tm.GetClient().Update(ctx, existingCPVSphereMachine)).To(Succeed())
+
+	By("VSphereMachine reconcile with nameservers and searchDomains configured only in the cp" +
+		" VSphereMachineTemplate should configure the values in the cp VSphereMachine's network device")
+	existingCPVSphereMachineTmpl := &infrav1.VSphereMachineTemplate{}
+	Expect(tm.GetClient().Get(ctx, client.ObjectKey{
+		Namespace: tm.VSphereMachineTemplate.Namespace,
+		Name:      "control-plane-template",
+	}, existingCPVSphereMachineTmpl)).To(Succeed())
+	existingCPVSphereMachineTmpl.Spec.Template.Spec.Network.Devices[0].Nameservers = []string{"1.2.3.4"}
+	existingCPVSphereMachineTmpl.Spec.Template.Spec.Network.Devices[0].SearchDomains = []string{"company.com"}
+	Expect(tm.GetClient().Update(ctx, existingCPVSphereMachineTmpl)).To(Succeed())
+
+	result, err = vSphereMachineReconciler.Reconcile(vmctrlreq)
+	Expect(err).To(BeNil())
+	Expect(result.RequeueAfter).To(BeZero())
+
+	existingCPVSphereMachine = &infrav1.VSphereMachine{}
+	Expect(tm.GetClient().Get(ctx, client.ObjectKey{
+		Namespace: tm.VSphereMachine.Namespace,
+		Name:      vSphereMachineName,
+	}, existingCPVSphereMachine)).To(Succeed())
+	Expect(existingCPVSphereMachine.Spec.Network.Devices[0].Nameservers[0]).To(Equal("1.2.3.4"))
+	Expect(existingCPVSphereMachine.Spec.Network.Devices[0].SearchDomains[0]).To(Equal("company.com"))
+
+	workerTemplateName := "worker-template"
+
+	By("creation of worker VSphereMachineTemplate should succeed")
+	workerVSphereMachineTemp := tm.VSphereMachineTemplate.DeepCopy()
+	workerVSphereMachineTemp.Name = workerTemplateName
+	Expect(tm.GetClient().Create(ctx, workerVSphereMachineTemp)).To(Succeed())
+
+	By("creation of capi machine deployment should succeed")
+	md := tm.MachineDeployment.DeepCopy()
+	md.Spec.Template.Spec.InfrastructureRef.Name = workerTemplateName
+	Expect(tm.GetClient().Create(ctx, md)).To(Succeed())
+
+	By("creation of worker VSphereMachine with DHCP set to false should succeed")
+	workerVSphereMachineName := "worker-vsphere-machine"
+	createNewVSphereMachine(workerVSphereMachineName, false)
+
+	By("VSphereMachine reconcile with nameservers and searchDomains configured only in the worker" +
+		" VSphereMachineTemplate should configure the values in the worker VSphereMachine's network device")
+	workerVSphereMachineTemp.Spec.Template.Spec.Network.Devices[0].Nameservers = []string{"11.22.33.44"}
+	workerVSphereMachineTemp.Spec.Template.Spec.Network.Devices[0].SearchDomains = []string{"test.com"}
+	Expect(tm.GetClient().Update(ctx, workerVSphereMachineTemp)).To(Succeed())
+
+	vmctrlreq = ctrl.Request{
+		NamespacedName: client.ObjectKey{
+			Namespace: tm.VSphereMachine.Namespace,
+			Name:      workerVSphereMachineName,
+		},
+	}
+
+	By("first VSphereMachine reconcile should create IPClaim and wait for IPAddress")
+	result, err = vSphereMachineReconciler.Reconcile(vmctrlreq)
+	Expect(err).To(BeNil())
+	Expect(result.RequeueAfter).To(Not(BeZero()))
+	ipClaimList := &ipamv1.IPClaimList{}
+	Expect(tm.GetClient().List(ctx, ipClaimList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
+	Expect(len(ipClaimList.Items)).To(Equal(2))
+
+	By("ipam reconcile should create an IPAddress for the existing IPClaim")
+	result, err = m3ipamReconciler.Reconcile(ipamctrlreq)
+	Expect(err).To(BeNil())
+	Expect(result.RequeueAfter).To(BeZero())
+	ipAddressList := &ipamv1.IPAddressList{}
+	Expect(tm.GetClient().List(ctx, ipAddressList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
+	Expect(err).To(BeNil())
+	Expect(len(ipAddressList.Items)).To(Equal(2))
+
+	By("second VSphereMachine reconcile should allocated the IPAddress to the waiting VSphereMachine")
+	result, err = vSphereMachineReconciler.Reconcile(vmctrlreq)
+	Expect(err).To(BeNil())
+	Expect(result.RequeueAfter).To(BeZero())
+
+	existingWorkerVSphereMachine := &infrav1.VSphereMachine{}
+	Expect(tm.GetClient().Get(ctx, client.ObjectKey{
+		Namespace: tm.VSphereMachine.Namespace,
+		Name:      workerVSphereMachineName,
+	}, existingWorkerVSphereMachine)).To(Succeed())
+	Expect(existingWorkerVSphereMachine.Spec.Network.Devices[0].Nameservers[0]).To(Equal("11.22.33.44"))
+	Expect(existingWorkerVSphereMachine.Spec.Network.Devices[0].SearchDomains[0]).To(Equal("test.com"))
+
 }
 
 func verifyVSphereClusterKubeVipAllocation() {
@@ -216,7 +357,7 @@ func verifyVSphereClusterKubeVipAllocation() {
 	By("reconcile of vsphere cluster with control plane endpoint should skip static IP Allocation")
 	result, err := vSphereClusterReconciler.Reconcile(ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: vSphereClusterNamespace,
 			Name:      vSphereClusterName,
 		},
 	})
@@ -226,14 +367,14 @@ func verifyVSphereClusterKubeVipAllocation() {
 	By("ipam reconcile without an IPClaim should skip creation of IPAddress")
 	existingIPClaimList := &ipamv1.IPClaimList{}
 	Expect(tm.GetClient().List(ctx, existingIPClaimList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
-	Expect(len(existingIPClaimList.Items)).To(Equal(1))
+	Expect(len(existingIPClaimList.Items)).To(Equal(2))
 	result, err = m3ipamReconciler.Reconcile(ipamctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 	ipList := &ipamv1.IPAddressList{}
 	Expect(tm.GetClient().List(ctx, ipList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
 	Expect(err).To(BeNil())
-	Expect(len(ipList.Items)).To(Equal(1))
+	Expect(len(ipList.Items)).To(Equal(2))
 
 	By("updating vsphere cluster with ip-pool-name label and empty control plane endpoint should succeed")
 	vSphereCluster := &infrav1.VSphereCluster{}
@@ -249,7 +390,7 @@ func verifyVSphereClusterKubeVipAllocation() {
 	By("first vsphere cluster reconcile should create IPClaim and wait for IPAddress")
 	vcctrlreq := ctrl.Request{
 		NamespacedName: client.ObjectKey{
-			Namespace: "default",
+			Namespace: vSphereClusterNamespace,
 			Name:      vSphereClusterName,
 		},
 	}
@@ -259,20 +400,20 @@ func verifyVSphereClusterKubeVipAllocation() {
 	Expect(result.RequeueAfter).To(Not(BeZero()))
 	ipClaimList := &ipamv1.IPClaimList{}
 	Expect(tm.GetClient().List(ctx, ipClaimList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
-	Expect(len(ipClaimList.Items)).To(Equal(2))
+	Expect(len(ipClaimList.Items)).To(Equal(3))
 
 	By("ipam reconcile should create an IPAddress for the existing IPClaim")
 	existingIPAddressList := &ipamv1.IPAddressList{}
 	Expect(tm.GetClient().List(ctx, existingIPAddressList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
 	Expect(err).To(BeNil())
-	Expect(len(existingIPAddressList.Items)).To(Equal(1))
+	Expect(len(existingIPAddressList.Items)).To(Equal(2))
 	result, err = m3ipamReconciler.Reconcile(ipamctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 	ipAddressList := &ipamv1.IPAddressList{}
 	Expect(tm.GetClient().List(ctx, ipAddressList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
 	Expect(err).To(BeNil())
-	Expect(len(ipAddressList.Items)).To(Equal(2))
+	Expect(len(ipAddressList.Items)).To(Equal(3))
 
 	By("second vsphere cluster reconcile should allocated the IPAddress to the vsphere cluster's control plane endpoint")
 	result, err = vSphereClusterReconciler.Reconcile(vcctrlreq)
@@ -284,5 +425,35 @@ func verifyVSphereClusterKubeVipAllocation() {
 		Namespace: vSphereClusterNamespace,
 		Name:      vSphereClusterName,
 	}, updatedVSphereCluster)).To(Succeed())
-	Expect(updatedVSphereCluster.Spec.ControlPlaneEndpoint.Host).To(Equal("10.10.100.21"))
+	Expect(updatedVSphereCluster.Spec.ControlPlaneEndpoint.Host).To(Equal("10.10.100.22"))
+}
+
+func createNewVSphereMachine(name string, isMaster bool) {
+	machine := tm.Machine.DeepCopy()
+	machine.Name = name
+	Expect(tm.GetClient().Create(ctx, machine)).To(Succeed())
+
+	vSphereMachine := tm.VSphereMachine.DeepCopy()
+	vSphereMachine.Name = name
+	if isMaster {
+		vSphereMachine.SetLabels(map[string]string{LabelControlPlane: ""})
+	}
+	vSphereMachine.SetOwnerReferences([]metav1.OwnerReference{
+		{
+			APIVersion: "cluster.x-k8s.io/v1alpha3",
+			Kind:       "Machine",
+			Name:       machine.Name,
+			UID:        machine.UID,
+		},
+	})
+
+	devices := vSphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
+	updatedDevices := []infrav1.NetworkDeviceSpec{}
+	for _, dev := range devices {
+		dev.DHCP4 = false
+		dev.DHCP6 = false
+		updatedDevices = append(updatedDevices, dev)
+	}
+	vSphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = updatedDevices
+	Expect(tm.GetClient().Create(ctx, vSphereMachine)).To(Succeed())
 }

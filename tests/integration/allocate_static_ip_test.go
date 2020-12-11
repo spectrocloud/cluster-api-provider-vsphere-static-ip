@@ -24,11 +24,12 @@ var _ = Describe("Static IP Allocation", func() {
 	BeforeEach(func() {})
 	AfterEach(func() {})
 
-	Context("Reconcile vSphere resources", func() {
+	Context("Reconcile vSphere resources to allocate static IP", func() {
 		It("should not error", func() {
 			initVariables()
 			createPrerequisiteResources()
 			verifyVSphereMachineStaticIPAllocation()
+			verifyNameserversAndSearchDomainsAllocation()
 			verifyVSphereClusterKubeVipAllocation()
 		})
 	})

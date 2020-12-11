@@ -140,7 +140,12 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			continue
 		}
 
-		matchLabels := getMatchLabels(r.Client, cluster.ObjectMeta, vsphereMachine, r.Log)
+		matchLabels, err := getMatchLabels(r.Client, cluster.ObjectMeta, vsphereMachine, r.Log)
+		if err != nil {
+			log.Error(err, "failed to get IPPool match labels")
+			return &ctrl.Result{}, nil
+		}
+
 		ipPool, err := ipamFunc.GetAvailableIPPool(matchLabels, cluster.ObjectMeta)
 		if err != nil {
 			log.Error(err, "failed to get an available IPPool")
@@ -181,8 +186,23 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		//TODO: handle ipv6
 		//gateway4 is required if DHCP4 is disabled, gateway6 is required if DHCP6 is disabled
 		dev.Gateway4 = gateway
+
+		//if set, the list of nameservers and searchDomains should be retrieved from the IPPool
+		//if not, always default to the values from the VSphereMachineTemplate
 		dev.Nameservers = util.GetDNSServers(ipPool)
 		dev.SearchDomains = util.GetSearchDomains(ipPool)
+		if len(dev.Nameservers) == 0 || len(dev.SearchDomains) == 0 {
+			vmTemplate, err := getVSphereMachineTemplate(r.Client, cluster.ObjectMeta, vsphereMachine)
+			if err != nil {
+				return &ctrl.Result{}, errors.Wrapf(err, "failed to get VSphereMachineTemplate for %s", vsphereMachine.Name)
+			}
+			if len(dev.Nameservers) == 0 {
+				dev.Nameservers = vmTemplate.Spec.Template.Spec.Network.Devices[0].Nameservers
+			}
+			if len(dev.SearchDomains) == 0 {
+				dev.SearchDomains = vmTemplate.Spec.Template.Spec.Network.Devices[0].SearchDomains
+			}
+		}
 
 		updatedDevices = append(updatedDevices, dev)
 	}
@@ -197,7 +217,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	return &ctrl.Result{}, nil
 }
 
-func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMachine *infrav1.VSphereMachine, log logr.Logger) map[string]string {
+func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMachine *infrav1.VSphereMachine, log logr.Logger) (map[string]string, error) {
 	labels := map[string]string{}
 
 	//match labels are an aggregate of VSphereMachine labels & VSphereMachineTemplate labels
@@ -208,39 +228,65 @@ func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMac
 
 	//in case of controlplane vsphereMachines the ippool labels have to be retrieved from the vsphereMachineTemplate
 	if infrautilv1.IsControlPlaneMachine(vsphereMachine) {
-		//labels to select kcp
-		kcpFilter := map[string]string{
-			ipam.ClusterNameKey: clusterMeta.Name,
-		}
-
-		kcpList := &v1alpha3.KubeadmControlPlaneList{}
-		err := cli.List(
-			context.Background(),
-			kcpList,
-			client.InNamespace(vsphereMachine.Namespace),
-			client.MatchingLabels(kcpFilter))
+		vmTemplate, err := getVSphereMachineTemplate(cli, clusterMeta, vsphereMachine)
 		if err != nil {
-			log.Error(err, fmt.Sprintf("failed to get kcp for cluster %s", clusterMeta.Name))
-			return labels
+			return labels, errors.Wrapf(err, "failed to get VSphereMachineTemplate for %s", vsphereMachine.Name)
 		}
 
-		kcp := kcpList.Items[0]
-		vmTemplateRef := kcp.Spec.InfrastructureTemplate
-
-		vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
-		key := types.NamespacedName{Namespace: vsphereMachine.Namespace, Name: vmTemplateRef.Name}
-		if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
-			log.Error(err, fmt.Sprintf("failed to get vsphere machine template %s", vmTemplateRef.Name))
-			return labels
-		}
-
-		vmTemplateLabels := util.GetObjLabels(vsphereMachineTemplate)
+		vmTemplateLabels := util.GetObjLabels(vmTemplate)
 		for k, v := range vmTemplateLabels {
 			labels[k] = v
 		}
 	}
 
-	return labels
+	return labels, nil
+}
+
+func getVSphereMachineTemplate(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMachine *infrav1.VSphereMachine) (*infrav1.VSphereMachineTemplate, error) {
+	vmTemplateName, err := getVSphereMachineTemplateName(cli, clusterMeta, vsphereMachine)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get VSphereMachineTemplate name for VSphereMachine %s", vsphereMachine.Name)
+	}
+
+	vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
+	key := types.NamespacedName{Namespace: vsphereMachine.Namespace, Name: vmTemplateName}
+	if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
+		return nil, errors.Wrapf(err, "failed to get VSphereMachineTemplate %s", vmTemplateName)
+	}
+
+	return vsphereMachineTemplate, nil
+}
+
+func getVSphereMachineTemplateName(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMachine *infrav1.VSphereMachine) (string, error) {
+	//list options for kcp and md
+	opt1 := client.InNamespace(vsphereMachine.Namespace)
+	opt2 := client.MatchingLabels{ipam.ClusterNameKey: clusterMeta.Name}
+
+	//get mt from kcp if its a cp machine
+	if infrautilv1.IsControlPlaneMachine(vsphereMachine) {
+		kcpList := &v1alpha3.KubeadmControlPlaneList{}
+		if err := cli.List(context.Background(), kcpList, opt1, opt2); err != nil {
+			return "", errors.Wrapf(err, "failed to get KubeadmControlPlane list for cluster %s", clusterMeta.Name)
+		}
+
+		if len(kcpList.Items) == 0 {
+			return "", errors.New("KubeadmControlPlane list is empty")
+		}
+
+		return kcpList.Items[0].Spec.InfrastructureTemplate.Name, nil
+	}
+
+	//get mt from md if its a worker machine
+	mdList := &capi.MachineDeploymentList{}
+	if err := cli.List(context.Background(), mdList, opt1, opt2); err != nil {
+		return "", errors.Wrapf(err, "failed to get MachineDeployment list for cluster %s", clusterMeta.Name)
+	}
+
+	if len(mdList.Items) == 0 {
+		return "", errors.New("MachineDeployment list is empty")
+	}
+
+	return mdList.Items[0].Spec.Template.Spec.InfrastructureRef.Name, nil
 }
 
 func (r *VSphereMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {

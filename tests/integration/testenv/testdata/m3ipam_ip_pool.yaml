@@ -17,4 +17,4 @@ spec:
   prefix: 18
   gateway: 10.10.100.1
   namePrefix: capi-quickstart
-  dnsServers: [8.8.8.8]
+  dnsServers: []
