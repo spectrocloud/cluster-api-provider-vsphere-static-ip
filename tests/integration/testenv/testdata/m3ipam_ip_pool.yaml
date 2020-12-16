@@ -6,6 +6,8 @@ metadata:
   labels:
     cluster.x-k8s.io/ip-pool-group: dev-cluster1-masterpool-vsan-cluster
     cluster.x-k8s.io/network-name: vm-network
+  annotations:
+    cluster.x-k8s.io/dns-search-domains: ""
   uid: "UUID"
 spec:
   clusterName: capi-quickstart
@@ -17,4 +19,4 @@ spec:
   prefix: 18
   gateway: 10.10.100.1
   namePrefix: capi-quickstart
-  dnsServers: [8.8.8.8]
+  dnsServers: []

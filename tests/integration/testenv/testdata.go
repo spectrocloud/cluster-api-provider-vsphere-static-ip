@@ -19,6 +19,7 @@ type TestData struct {
 	KubeadmControlPlane    *v1alpha3.KubeadmControlPlane
 	Cluster                *capi.Cluster
 	Machine                *capi.Machine
+	MachineDeployment      *capi.MachineDeployment
 }
 
 func GetTestData() (*TestData, error) {
@@ -30,6 +31,7 @@ func GetTestData() (*TestData, error) {
 		KubeadmControlPlane:    &v1alpha3.KubeadmControlPlane{},
 		Cluster:                &capi.Cluster{},
 		Machine:                &capi.Machine{},
+		MachineDeployment:      &capi.MachineDeployment{},
 	}
 	all := map[string]interface{}{
 		"m3ipam_ip_pool.yaml":           td.M3IpamIPPool,
@@ -39,6 +41,7 @@ func GetTestData() (*TestData, error) {
 		"kcp.yaml":                      td.KubeadmControlPlane,
 		"capi_cluster.yaml":             td.Cluster,
 		"capi_machine.yaml":             td.Machine,
+		"capi_machinedeployment.yaml":   td.MachineDeployment,
 	}
 
 	for file, v := range all {

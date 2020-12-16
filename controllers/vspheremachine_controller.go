@@ -123,9 +123,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		return &ctrl.Result{}, nil
 	}
 
-	updatedDevices := []infrav1.NetworkDeviceSpec{}
 	dataPatch := client.MergeFrom(vsphereMachine.DeepCopy())
-
 	newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]
 	if !ok {
 		log.V(0).Info("ipam type not supported")
@@ -134,9 +132,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 
 	ipamFunc := newIpamFunc(r.Client, log)
 
-	for i, dev := range devices {
-		if util.IsDeviceIPAllocationDHCP(dev) || len(dev.IPAddrs) > 0 {
-			updatedDevices = append(updatedDevices, dev)
+	for i := range devices {
+		if util.IsDeviceIPAllocationDHCP(devices[i]) || len(devices[i].IPAddrs) > 0 {
 			continue
 		}
 
@@ -176,18 +173,24 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		ipCidr := fmt.Sprintf("%s/%d", util.GetAddress(ip), util.GetMask(ip))
 		log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine", util.GetAddress(ip)))
 
-		dev.IPAddrs = []string{ipCidr}
+		devices[i].IPAddrs = []string{ipCidr}
 		gateway := util.GetGateway(ip)
 		//TODO: handle ipv6
 		//gateway4 is required if DHCP4 is disabled, gateway6 is required if DHCP6 is disabled
-		dev.Gateway4 = gateway
-		dev.Nameservers = util.GetDNSServers(ipPool)
-		dev.SearchDomains = util.GetSearchDomains(ipPool)
+		devices[i].Gateway4 = gateway
 
-		updatedDevices = append(updatedDevices, dev)
+		//if configured, the values of nameservers and searchDomains from the IPPool
+		//will override the default values set from the VSphereMachineTemplate
+		nameservers := util.GetDNSServers(ipPool)
+		if len(nameservers) > 0 {
+			devices[i].Nameservers = nameservers
+		}
+		searchDomains := util.GetSearchDomains(ipPool)
+		if len(searchDomains) > 0 {
+			devices[i].SearchDomains = searchDomains
+		}
 	}
 
-	vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices = updatedDevices
 	if err := r.Patch(context.TODO(), vsphereMachine.DeepCopyObject(), dataPatch); err != nil {
 		return &ctrl.Result{}, errors.Wrapf(err, "failed to patch VSphereMachine %s", vsphereMachine.Name)
 	}
@@ -206,7 +209,7 @@ func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMac
 		labels[k] = v
 	}
 
-	//in case of controlplane vsphereMachines the ippool labels have to be retrieved from the vsphereMachineTemplate
+	//in case of controlplane VSphereMachines, the IPPool labels have to be retrieved from the VSphereMachineTemplate
 	if infrautilv1.IsControlPlaneMachine(vsphereMachine) {
 		//labels to select kcp
 		kcpFilter := map[string]string{
@@ -221,6 +224,11 @@ func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMac
 			client.MatchingLabels(kcpFilter))
 		if err != nil {
 			log.Error(err, fmt.Sprintf("failed to get kcp for cluster %s", clusterMeta.Name))
+			return labels
+		}
+
+		if len(kcpList.Items) == 0 {
+			log.Error(errors.New("KubeadmControlPlane list is empty"), "failed to get IPPool match labels")
 			return labels
 		}
 
