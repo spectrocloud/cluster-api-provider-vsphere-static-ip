@@ -331,6 +331,9 @@ func createNewVSphereMachine(name string, isMaster bool, template *infrav1.VSphe
 	if isMaster {
 		vSphereMachine.SetLabels(map[string]string{LabelControlPlane: ""})
 	}
+
+	//set 'clone-from-name' annotation, which is used to select the IPPool for the VM
+	vSphereMachine.SetAnnotations(map[string]string{capiv1alpha3.TemplateClonedFromNameAnnotation: template.Name})
 	vSphereMachine.SetOwnerReferences([]metav1.OwnerReference{
 		{
 			APIVersion: "cluster.x-k8s.io/v1alpha3",
