@@ -202,13 +202,13 @@ func (r *VSphereMachineReconciler) getIPPoolMatchLabels(cli client.Client, vSphe
 	//match labels for the IPPool are retrieved from the VSphereMachineTemplate
 	vmTemplateName, ok := vSphereMachine.GetAnnotations()[capi.TemplateClonedFromNameAnnotation]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("VSphereMachine %s has no value set in the 'cloned-from-name' annotation", vSphereMachine.Name))
+		return nil, fmt.Errorf("VSphereMachine %s has no value set in the 'cloned-from-name' annotation", vSphereMachine.Name)
 	}
 
 	vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
 	key := types.NamespacedName{Namespace: vSphereMachine.Namespace, Name: vmTemplateName}
 	if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
-		return nil, errors.New(fmt.Sprintf("failed to get VSphereMachineTemplate %s", vmTemplateName))
+		return nil, fmt.Errorf("failed to get VSphereMachineTemplate %s", vmTemplateName)
 	}
 
 	return vsphereMachineTemplate.GetLabels(), nil
