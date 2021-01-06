@@ -130,7 +130,11 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			continue
 		}
 
-		poolMatchLabels := r.getIPPoolMatchLabels(r.Client, vSphereMachine, r.Log)
+		poolMatchLabels, err := r.getIPPoolMatchLabels(r.Client, vSphereMachine)
+		if err != nil {
+			log.Error(err, "failed to get IPPool match labels")
+			return &ctrl.Result{}, nil
+		}
 		ipPool, err := ipamFunc.GetAvailableIPPool(poolMatchLabels, cluster.ObjectMeta)
 		if err != nil {
 			log.Error(err, "failed to get an available IPPool")
@@ -193,29 +197,21 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	return &ctrl.Result{}, nil
 }
 
-func (r *VSphereMachineReconciler) getIPPoolMatchLabels(cli client.Client, vSphereMachine *infrav1.VSphereMachine, log logr.Logger) map[string]string {
-	labels := map[string]string{}
+func (r *VSphereMachineReconciler) getIPPoolMatchLabels(cli client.Client, vSphereMachine *infrav1.VSphereMachine) (map[string]string, error) {
 
 	//match labels for the IPPool are retrieved from the VSphereMachineTemplate
 	vmTemplateName, ok := vSphereMachine.GetAnnotations()[capi.TemplateClonedFromNameAnnotation]
 	if !ok {
-		log.V(0).Info("VSphereMachine's 'cloned-from-name' annotation is empty", "VSphereMachine", vSphereMachine.Name)
-		return labels
+		return nil, errors.New(fmt.Sprintf("VSphereMachine %s has no value set in the 'cloned-from-name' annotation", vSphereMachine.Name))
 	}
 
 	vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
 	key := types.NamespacedName{Namespace: vSphereMachine.Namespace, Name: vmTemplateName}
 	if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
-		log.Error(err, "failed to get VSphereMachineTemplate", "VSphereMachineTemplate", vmTemplateName)
-		return labels
+		return nil, errors.New(fmt.Sprintf("failed to get VSphereMachineTemplate %s", vmTemplateName))
 	}
 
-	vmTemplateLabels := util.GetObjLabels(vsphereMachineTemplate)
-	for k, v := range vmTemplateLabels {
-		labels[k] = v
-	}
-
-	return labels
+	return vsphereMachineTemplate.GetLabels(), nil
 }
 
 func (r *VSphereMachineReconciler) SetupWithManager(mgr ctrl.Manager) error {

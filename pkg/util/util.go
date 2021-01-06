@@ -2,7 +2,6 @@ package util
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	corev1 "k8s.io/api/core/v1"
@@ -112,19 +111,6 @@ func GetObjRef(obj runtime.Object) corev1.ObjectReference {
 	}
 }
 
-func ConvertToLabelFormat(s string) string {
-	//lowercase, replacing '-' for space
-	return strings.ReplaceAll(strings.ToLower(s), " ", "-")
-}
-
 func GetFormattedClaimName(ownerName string, deviceCount int) string {
 	return fmt.Sprintf("%s-%d", ownerName, deviceCount)
-}
-
-func GetObjLabels(obj runtime.Object) map[string]string {
-	metaa, err := meta.Accessor(obj)
-	if err != nil {
-		return nil
-	}
-	return metaa.GetLabels()
 }
