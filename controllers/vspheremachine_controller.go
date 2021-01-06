@@ -21,26 +21,19 @@ import (
 	"fmt"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	infrautilv1 "sigs.k8s.io/cluster-api-provider-vsphere/pkg/util"
-
-	"sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
-
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/factory"
+	_ "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/metal3io"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	_ "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/metal3io"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
 	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
 	clusterutilv1 "sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // VSphereMachineReconciler reconciles a VSphereMachine object
@@ -104,14 +97,14 @@ func (r *VSphereMachineReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	return *res, err
 }
 
-func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *capi.Cluster, vsphereMachine *infrav1.VSphereMachine) (*ctrl.Result, error) {
-	if vsphereMachine == nil {
+func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *capi.Cluster, vSphereMachine *infrav1.VSphereMachine) (*ctrl.Result, error) {
+	if vSphereMachine == nil {
 		r.Log.V(0).Info("invalid VSphereMachine, skipping reconcile IPAddress")
 		return &ctrl.Result{}, nil
 	}
 
-	log := r.Log.WithValues("vsphereMachine", vsphereMachine.Name, "namespace", vsphereMachine.Namespace)
-	devices := vsphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
+	log := r.Log.WithValues("vsphereMachine", vSphereMachine.Name, "namespace", vSphereMachine.Namespace)
+	devices := vSphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
 	log.V(0).Info("reconcile IP address for VSphereMachine")
 	if len(devices) == 0 {
 		log.V(0).Info("no network device found for VSphereMachine")
@@ -123,7 +116,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		return &ctrl.Result{}, nil
 	}
 
-	dataPatch := client.MergeFrom(vsphereMachine.DeepCopy())
+	dataPatch := client.MergeFrom(vSphereMachine.DeepCopy())
 	newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]
 	if !ok {
 		log.V(0).Info("ipam type not supported")
@@ -137,8 +130,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			continue
 		}
 
-		matchLabels := getMatchLabels(r.Client, cluster.ObjectMeta, vsphereMachine, r.Log)
-		ipPool, err := ipamFunc.GetAvailableIPPool(matchLabels, cluster.ObjectMeta)
+		poolMatchLabels := r.getIPPoolMatchLabels(r.Client, vSphereMachine, r.Log)
+		ipPool, err := ipamFunc.GetAvailableIPPool(poolMatchLabels, cluster.ObjectMeta)
 		if err != nil {
 			log.Error(err, "failed to get an available IPPool")
 			return &ctrl.Result{}, nil
@@ -148,15 +141,15 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 			return &ctrl.Result{}, nil
 		}
 
-		ipName := util.GetFormattedClaimName(vsphereMachine.Name, i)
+		ipName := util.GetFormattedClaimName(vSphereMachine.Name, i)
 		ip, err := ipamFunc.GetIP(ipName, ipPool)
 		if err != nil {
-			return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for VSphereMachine %s", vsphereMachine.Name)
+			return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for VSphereMachine %s", vSphereMachine.Name)
 		}
 
 		if ip == nil {
-			if _, err := ipamFunc.AllocateIP(ipName, ipPool, vsphereMachine); err != nil {
-				return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for VSphereMachine: %s", vsphereMachine.Name)
+			if _, err := ipamFunc.AllocateIP(ipName, ipPool, vSphereMachine); err != nil {
+				return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for VSphereMachine: %s", vSphereMachine.Name)
 			}
 
 			log.V(0).Info("waiting for IP address to be available for the VSphereMachine")
@@ -164,14 +157,14 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		}
 
 		if err := util.ValidateIP(ip); err != nil {
-			return &ctrl.Result{}, errors.Wrapf(err, "invalid IP address retrieved for VSphereMachine: %s", vsphereMachine.Name)
+			return &ctrl.Result{}, errors.Wrapf(err, "invalid IP address retrieved for VSphereMachine: %s", vSphereMachine.Name)
 		}
 
-		log.V(0).Info(fmt.Sprintf("static IP for VSphereMachine is %s", ip.GetName()))
+		log.V(0).Info("static IP selected for VSphereMachine", "IPAddressName", ip.GetName())
 
 		//capv expects static-ip in the CIDR format
 		ipCidr := fmt.Sprintf("%s/%d", util.GetAddress(ip), util.GetMask(ip))
-		log.V(0).Info(fmt.Sprintf("assigning IP address %s to VSphereMachine", util.GetAddress(ip)))
+		log.V(0).Info("assigning IP address to VSphereMachine", "IPAddress", util.GetAddress(ip))
 
 		devices[i].IPAddrs = []string{ipCidr}
 		gateway := util.GetGateway(ip)
@@ -191,8 +184,8 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		}
 	}
 
-	if err := r.Patch(context.TODO(), vsphereMachine.DeepCopyObject(), dataPatch); err != nil {
-		return &ctrl.Result{}, errors.Wrapf(err, "failed to patch VSphereMachine %s", vsphereMachine.Name)
+	if err := r.Patch(context.TODO(), vSphereMachine.DeepCopyObject(), dataPatch); err != nil {
+		return &ctrl.Result{}, errors.Wrapf(err, "failed to patch VSphereMachine %s", vSphereMachine.Name)
 	}
 
 	log.V(0).Info("successfully reconciled IP address for VSphereMachine")
@@ -200,52 +193,26 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 	return &ctrl.Result{}, nil
 }
 
-func getMatchLabels(cli client.Client, clusterMeta metav1.ObjectMeta, vsphereMachine *infrav1.VSphereMachine, log logr.Logger) map[string]string {
+func (r *VSphereMachineReconciler) getIPPoolMatchLabels(cli client.Client, vSphereMachine *infrav1.VSphereMachine, log logr.Logger) map[string]string {
 	labels := map[string]string{}
 
-	//match labels are an aggregate of VSphereMachine labels & VSphereMachineTemplate labels
-	vmLabels := util.GetObjLabels(vsphereMachine)
-	for k, v := range vmLabels {
-		labels[k] = v
+	//match labels for the IPPool are retrieved from the VSphereMachineTemplate
+	vmTemplateName, ok := vSphereMachine.GetAnnotations()[capi.TemplateClonedFromNameAnnotation]
+	if !ok {
+		log.V(0).Info("VSphereMachine's 'cloned-from-name' annotation is empty", "VSphereMachine", vSphereMachine.Name)
+		return labels
 	}
 
-	//in case of controlplane VSphereMachines, the IPPool labels have to be retrieved from the VSphereMachineTemplate
-	if infrautilv1.IsControlPlaneMachine(vsphereMachine) {
-		//labels to select kcp
-		kcpFilter := map[string]string{
-			ipam.ClusterNameKey: clusterMeta.Name,
-		}
+	vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
+	key := types.NamespacedName{Namespace: vSphereMachine.Namespace, Name: vmTemplateName}
+	if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
+		log.Error(err, "failed to get VSphereMachineTemplate", "VSphereMachineTemplate", vmTemplateName)
+		return labels
+	}
 
-		kcpList := &v1alpha3.KubeadmControlPlaneList{}
-		err := cli.List(
-			context.Background(),
-			kcpList,
-			client.InNamespace(vsphereMachine.Namespace),
-			client.MatchingLabels(kcpFilter))
-		if err != nil {
-			log.Error(err, fmt.Sprintf("failed to get kcp for cluster %s", clusterMeta.Name))
-			return labels
-		}
-
-		if len(kcpList.Items) == 0 {
-			log.Error(errors.New("KubeadmControlPlane list is empty"), "failed to get IPPool match labels")
-			return labels
-		}
-
-		kcp := kcpList.Items[0]
-		vmTemplateRef := kcp.Spec.InfrastructureTemplate
-
-		vsphereMachineTemplate := &infrav1.VSphereMachineTemplate{}
-		key := types.NamespacedName{Namespace: vsphereMachine.Namespace, Name: vmTemplateRef.Name}
-		if err := cli.Get(context.Background(), key, vsphereMachineTemplate); err != nil {
-			log.Error(err, fmt.Sprintf("failed to get vsphere machine template %s", vmTemplateRef.Name))
-			return labels
-		}
-
-		vmTemplateLabels := util.GetObjLabels(vsphereMachineTemplate)
-		for k, v := range vmTemplateLabels {
-			labels[k] = v
-		}
+	vmTemplateLabels := util.GetObjLabels(vsphereMachineTemplate)
+	for k, v := range vmTemplateLabels {
+		labels[k] = v
 	}
 
 	return labels
