@@ -6,9 +6,9 @@ import (
 
 	"github.com/ghodss/yaml"
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
-	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
-	"sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
+	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
+	"sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
 )
 
 type TestData struct {
@@ -16,7 +16,7 @@ type TestData struct {
 	VSphereMachineTemplate *infrav1.VSphereMachineTemplate
 	VSphereMachine         *infrav1.VSphereMachine
 	VSphereCluster         *infrav1.VSphereCluster
-	KubeadmControlPlane    *v1alpha3.KubeadmControlPlane
+	KubeadmControlPlane    *v1alpha4.KubeadmControlPlane
 	Cluster                *capi.Cluster
 	Machine                *capi.Machine
 	MachineDeployment      *capi.MachineDeployment
@@ -28,7 +28,7 @@ func GetTestData() (*TestData, error) {
 		VSphereMachineTemplate: &infrav1.VSphereMachineTemplate{},
 		VSphereMachine:         &infrav1.VSphereMachine{},
 		VSphereCluster:         &infrav1.VSphereCluster{},
-		KubeadmControlPlane:    &v1alpha3.KubeadmControlPlane{},
+		KubeadmControlPlane:    &v1alpha4.KubeadmControlPlane{},
 		Cluster:                &capi.Cluster{},
 		Machine:                &capi.Machine{},
 		MachineDeployment:      &capi.MachineDeployment{},

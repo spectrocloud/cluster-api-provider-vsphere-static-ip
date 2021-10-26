@@ -14,10 +14,10 @@ import (
 	. "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
-	kubeadmv3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
+	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
+	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
+	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	kubeadmv3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -94,26 +94,34 @@ func createPrerequisiteResources() {
 	logInfoLine("createPrerequisiteResources")
 
 	By("creation of m3ippool should succeed")
-	Expect(tm.GetClient().Create(ctx, tm.M3IpamIPPool.DeepCopy())).To(Succeed())
+	tmippool := tm.M3IpamIPPool.DeepCopy()
+	tmippool.SetResourceVersion("")
+	Expect(tm.GetClient().Create(ctx, tmippool)).To(Succeed())
 
 	By("creation of capi cluster should succeed")
-	Expect(tm.GetClient().Create(ctx, tm.Cluster.DeepCopy())).To(Succeed())
+	tmcluster := tm.Cluster.DeepCopy()
+	tmcluster.SetResourceVersion("")
+	Expect(tm.GetClient().Create(ctx, tmcluster)).To(Succeed())
 }
 
 func verifyVSphereMachineStaticIPAllocation() {
 	logInfoLine("verifyVSphereMachineStaticIPAllocation")
 
 	By("creation of machine should succeed")
-	Expect(tm.GetClient().Create(ctx, tm.Machine.DeepCopy())).To(Succeed())
+	tmMachine := tm.Machine.DeepCopy()
+	tmMachine.SetResourceVersion("")
+	Expect(tm.GetClient().Create(ctx, tmMachine)).To(Succeed())
 
 	By("creation of VSphereMachine with DHCP set to true should succeed")
-	Expect(tm.GetClient().Create(ctx, tm.VSphereMachine.DeepCopy())).To(Succeed())
+	tmvpshereMachine := tm.VSphereMachine.DeepCopy()
+	tmvpshereMachine.SetResourceVersion("")
+	Expect(tm.GetClient().Create(ctx, tmvpshereMachine)).To(Succeed())
 
 	By("reconcile of VSphereMachine with DHCP should skip static IP Allocation")
 	testVSphereMachineReconcileSuccess(getReconcileRequest(tm.VSphereMachine.Name, tm.VSphereMachine.Namespace))
 
 	By("ipam reconcile without any IPClaim should skip creation of IPAddress")
-	result, err := m3ipamReconciler.Reconcile(ipamctrlreq)
+	result, err := m3ipamReconciler.Reconcile(ctx, ipamctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 	ipList := &ipamv1.IPAddressList{}
@@ -131,7 +139,8 @@ func verifyVSphereMachineStaticIPAllocation() {
 
 	By("creation of kubeadm control plane should succeed")
 	kcp := tm.KubeadmControlPlane.DeepCopy()
-	kcp.Spec.InfrastructureTemplate.Name = cpTemplateName
+	kcp.SetResourceVersion("")
+	kcp.Spec.MachineTemplate.InfrastructureRef.Name = cpTemplateName
 	Expect(tm.GetClient().Create(ctx, kcp)).To(Succeed())
 
 	By("creation of control-plane VSphereMachine with DHCP set to false should succeed")
@@ -145,7 +154,7 @@ func verifyVSphereMachineStaticIPAllocation() {
 	Expect(len(ipClaimList.Items)).To(Equal(1))
 
 	By("ipam reconcile should create an IPAddress for the existing IPClaim")
-	result, err = m3ipamReconciler.Reconcile(ipamctrlreq)
+	result, err = m3ipamReconciler.Reconcile(ctx, ipamctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 	ipAddressList := &ipamv1.IPAddressList{}
@@ -201,7 +210,7 @@ func verifyNameserversAndSearchDomainsAllocation() {
 	Expect(len(ipClaimList.Items)).To(Equal(2))
 
 	By("ipam reconcile should create an IPAddress for the existing IPClaim")
-	result, err := m3ipamReconciler.Reconcile(ipamctrlreq)
+	result, err := m3ipamReconciler.Reconcile(ctx, ipamctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 	ipAddressList := &ipamv1.IPAddressList{}
@@ -260,7 +269,7 @@ func verifyVSphereClusterKubeVipAllocation() {
 	Expect(tm.GetClient().Create(ctx, tm.VSphereCluster.DeepCopy())).To(Succeed())
 
 	By("reconcile of vsphere cluster with control plane endpoint should skip static IP Allocation")
-	result, err := vSphereClusterReconciler.Reconcile(getReconcileRequest(vSphereClusterName, vSphereClusterNamespace))
+	result, err := vSphereClusterReconciler.Reconcile(ctx, getReconcileRequest(vSphereClusterName, vSphereClusterNamespace))
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 
@@ -268,7 +277,7 @@ func verifyVSphereClusterKubeVipAllocation() {
 	existingIPClaimList := &ipamv1.IPClaimList{}
 	Expect(tm.GetClient().List(ctx, existingIPClaimList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
 	Expect(len(existingIPClaimList.Items)).To(Equal(2))
-	result, err = m3ipamReconciler.Reconcile(ipamctrlreq)
+	result, err = m3ipamReconciler.Reconcile(ctx, ipamctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 	ipList := &ipamv1.IPAddressList{}
@@ -288,7 +297,7 @@ func verifyVSphereClusterKubeVipAllocation() {
 	Expect(tm.GetClient().Update(ctx, vSphereCluster)).To(Succeed())
 
 	By("first vsphere cluster reconcile should create IPClaim and wait for IPAddress")
-	result, err = vSphereClusterReconciler.Reconcile(getReconcileRequest(vSphereClusterName, vSphereClusterNamespace))
+	result, err = vSphereClusterReconciler.Reconcile(ctx, getReconcileRequest(vSphereClusterName, vSphereClusterNamespace))
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(Not(BeZero()))
 	ipClaimList := &ipamv1.IPClaimList{}
@@ -300,7 +309,7 @@ func verifyVSphereClusterKubeVipAllocation() {
 	Expect(tm.GetClient().List(ctx, existingIPAddressList, client.InNamespace(tm.Cluster.Namespace))).To(Succeed())
 	Expect(err).To(BeNil())
 	Expect(len(existingIPAddressList.Items)).To(Equal(2))
-	result, err = m3ipamReconciler.Reconcile(ipamctrlreq)
+	result, err = m3ipamReconciler.Reconcile(ctx, ipamctrlreq)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 	ipAddressList := &ipamv1.IPAddressList{}
@@ -309,7 +318,7 @@ func verifyVSphereClusterKubeVipAllocation() {
 	Expect(len(ipAddressList.Items)).To(Equal(3))
 
 	By("second vsphere cluster reconcile should allocate the IPAddress to the vsphere cluster's control plane endpoint")
-	result, err = vSphereClusterReconciler.Reconcile(getReconcileRequest(vSphereClusterName, vSphereClusterNamespace))
+	result, err = vSphereClusterReconciler.Reconcile(ctx, getReconcileRequest(vSphereClusterName, vSphereClusterNamespace))
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 
@@ -324,6 +333,7 @@ func verifyVSphereClusterKubeVipAllocation() {
 func createNewVSphereMachine(name string, isMaster bool, template *infrav1.VSphereMachineTemplate) {
 	machine := tm.Machine.DeepCopy()
 	machine.Name = name
+	machine.SetResourceVersion("")
 	Expect(tm.GetClient().Create(ctx, machine)).To(Succeed())
 
 	vSphereMachine := tm.VSphereMachine.DeepCopy()
@@ -355,13 +365,13 @@ func createNewVSphereMachine(name string, isMaster bool, template *infrav1.VSphe
 }
 
 func testVSphereMachineReconcileRequeue(req reconcile.Request) {
-	result, err := vSphereMachineReconciler.Reconcile(req)
+	result, err := vSphereMachineReconciler.Reconcile(ctx, req)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(Not(BeZero()))
 }
 
 func testVSphereMachineReconcileSuccess(req reconcile.Request) {
-	result, err := vSphereMachineReconciler.Reconcile(req)
+	result, err := vSphereMachineReconciler.Reconcile(ctx, req)
 	Expect(err).To(BeNil())
 	Expect(result.RequeueAfter).To(BeZero())
 }

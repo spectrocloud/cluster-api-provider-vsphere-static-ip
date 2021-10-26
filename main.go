@@ -27,9 +27,9 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/klogr"
-	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
-	kubeadmcontrolplane "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
+	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
+	kubeadmcontrolplane "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
 	ctrl "sigs.k8s.io/controller-runtime"
 	// +kubebuilder:scaffold:imports
 )
@@ -89,14 +89,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.HAProxyLoadBalancerReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("HAProxyLoadBalancer"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "HAProxyLoadBalancer")
-		os.Exit(1)
-	}
 	if err = (&controllers.VSphereMachineReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("VSphereMachine"),

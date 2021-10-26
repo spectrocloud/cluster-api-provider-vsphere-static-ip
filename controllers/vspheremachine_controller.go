@@ -29,8 +29,8 @@ import (
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
+	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
 	clusterutilv1 "sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -57,8 +57,7 @@ type VSphereMachineReconciler struct {
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipaddresses,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=ipam.metal3.io,resources=ipaddresses/status,verbs=get;update;patch
 
-func (r *VSphereMachineReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *VSphereMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("vspheremachine", req.NamespacedName)
 	var res *ctrl.Result
 	var err error
@@ -188,7 +187,7 @@ func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *cap
 		}
 	}
 
-	if err := r.Patch(context.TODO(), vSphereMachine.DeepCopyObject(), dataPatch); err != nil {
+	if err := r.Patch(context.TODO(), vSphereMachine, dataPatch); err != nil {
 		return &ctrl.Result{}, errors.Wrapf(err, "failed to patch VSphereMachine %s", vSphereMachine.Name)
 	}
 
