@@ -10,9 +10,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha3"
-	kubeadmv3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha3"
+	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
+	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
+	kubeadmv4 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
@@ -53,34 +53,18 @@ type InitEnvironmentInput struct {
 }
 
 func (m *Manager) InitEnvironment(input InitEnvironmentInput) {
-	// in order to enable podpreset, we need to apply a complete list of flags for apiserver
-	// copied other flags from their defaults
-	apiserverFlags := []string{
-		"--runtime-config=settings.k8s.io/v1alpha1=true",
-		"--enable-admission-plugins=PodPreset",
-		"--advertise-address=127.0.0.1",
-		"--etcd-servers={{ if .EtcdURL }}{{ .EtcdURL.String }}{{ end }}",
-		"--cert-dir={{ .CertDir }}",
-		"--insecure-port={{ if .URL }}{{ .URL.Port }}{{ end }}",
-		"--insecure-bind-address={{ if .URL }}{{ .URL.Hostname }}{{ end }}",
-		"--secure-port={{ if .SecurePort }}{{ .SecurePort }}{{ end }}",
-		"--disable-admission-plugins=NamespaceLifecycle,LimitRanger,ServiceAccount,TaintNodesByCondition,Priority,DefaultTolerationSeconds,DefaultStorageClass,StorageObjectInUseProtection,PersistentVolumeClaimResize,ResourceQuota", //nolint
-		"--service-cluster-ip-range=10.0.0.0/24",
-		"--allow-privileged=true",
-	}
 	testEnv := &envtest.Environment{
-		CRDDirectoryPaths:  input.CRDs,
-		KubeAPIServerFlags: apiserverFlags,
+		CRDDirectoryPaths: input.CRDs,
 	}
 
 	//+kubebuilder:scaffold:scheme
-	err := capiv1alpha3.AddToScheme(scheme.Scheme)
+	err := capiv1alpha4.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	err = capivsphere.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 	err = ipam.AddToScheme(scheme.Scheme)
 	Expect(err).ToNot(HaveOccurred())
-	err = kubeadmv3.AddToScheme(scheme.Scheme)
+	err = kubeadmv4.AddToScheme(scheme.Scheme)
 	Expect(err).ToNot(HaveOccurred())
 
 	cfg, _ := testEnv.Start()

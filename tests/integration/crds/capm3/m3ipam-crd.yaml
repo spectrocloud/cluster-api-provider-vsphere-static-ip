@@ -3,7 +3,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: capi-webhook-system/ipam-serving-cert
-    controller-gen.kubebuilder.io/version: v0.2.8
+    controller-gen.kubebuilder.io/version: v0.7.0
   creationTimestamp: null
   labels:
     cluster.x-k8s.io/provider: infrastructure-metal3
@@ -33,11 +33,21 @@ spec:
     shortNames:
       - ipa
       - ipaddress
-      - ipaddress
+      - m3ipa
+      - m3ipaddress
+      - m3ipaddresses
+      - metal3ipa
+      - metal3ipaddress
+      - metal3ipaddresses
     singular: ipaddress
   scope: Namespaced
   versions:
-    - name: v1alpha1
+    - additionalPrinterColumns:
+        - description: Time duration since creation of Metal3IPAddress
+          jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
       schema:
         openAPIV3Schema:
           description: IPAddress is the Schema for the ipaddresses API
@@ -156,6 +166,7 @@ spec:
           type: object
       served: true
       storage: true
+      subresources: {}
 status:
   acceptedNames:
     kind: ""
@@ -168,7 +179,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: capi-webhook-system/ipam-serving-cert
-    controller-gen.kubebuilder.io/version: v0.2.8
+    controller-gen.kubebuilder.io/version: v0.7.0
   creationTimestamp: null
   labels:
     cluster.x-k8s.io/provider: infrastructure-metal3
@@ -196,13 +207,23 @@ spec:
     listKind: IPClaimList
     plural: ipclaims
     shortNames:
+      - ipc
+      - ipclaim
       - m3ipc
       - m3ipclaim
-      - ipclaim
+      - m3ipclaims
+      - metal3ipc
+      - metal3ipclaim
+      - metal3ipclaims
     singular: ipclaim
   scope: Namespaced
   versions:
-    - name: v1alpha1
+    - additionalPrinterColumns:
+        - description: Time duration since creation of Metal3IPClaim
+          jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1alpha1
       schema:
         openAPIV3Schema:
           description: IPClaim is the Schema for the ipclaims API
@@ -322,7 +343,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: capi-webhook-system/ipam-serving-cert
-    controller-gen.kubebuilder.io/version: v0.2.8
+    controller-gen.kubebuilder.io/version: v0.7.0
   creationTimestamp: null
   labels:
     cluster.x-k8s.io/provider: infrastructure-metal3
@@ -350,8 +371,14 @@ spec:
     listKind: IPPoolList
     plural: ippools
     shortNames:
+      - ipp
+      - ippool
       - m3ipp
       - m3ippool
+      - m3ippools
+      - metal3ipp
+      - metal3ippool
+      - metal3ippools
     singular: ippool
   scope: Namespaced
   versions:
@@ -360,6 +387,10 @@ spec:
           jsonPath: .metadata.labels.cluster\.x-k8s\.io/cluster-name
           name: Cluster
           type: string
+        - description: Time duration since creation of Metal3IPPool
+          jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
@@ -482,7 +513,7 @@ status:
   conditions: []
   storedVersions: []
 ---
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: MutatingWebhookConfiguration
 metadata:
   annotations:
@@ -492,12 +523,14 @@ metadata:
     cluster.x-k8s.io/provider: infrastructure-metal3
   name: ipam-mutating-webhook-configuration
 webhooks:
-  - clientConfig:
-      caBundle: Cg==
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
       service:
         name: ipam-webhook-service
         namespace: capi-webhook-system
-        path: /mutate-ipam-metal3-io-v1alpha4-ipaddress
+        path: /mutate-ipam-metal3-io-v1alpha1-ipaddress
     failurePolicy: Fail
     matchPolicy: Equivalent
     name: default.ipaddress.ipam.metal3.io
@@ -505,18 +538,21 @@ webhooks:
       - apiGroups:
           - ipam.metal3.io
         apiVersions:
-          - v1alpha4
+          - v1alpha1
         operations:
           - CREATE
           - UPDATE
         resources:
           - ipaddresses
-  - clientConfig:
-      caBundle: Cg==
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
       service:
         name: ipam-webhook-service
         namespace: capi-webhook-system
-        path: /mutate-ipam-metal3-io-v1alpha4-ipclaim
+        path: /mutate-ipam-metal3-io-v1alpha1-ipclaim
     failurePolicy: Fail
     matchPolicy: Equivalent
     name: default.ipclaim.ipam.metal3.io
@@ -524,18 +560,21 @@ webhooks:
       - apiGroups:
           - ipam.metal3.io
         apiVersions:
-          - v1alpha4
+          - v1alpha1
         operations:
           - CREATE
           - UPDATE
         resources:
           - ipclaims
-  - clientConfig:
-      caBundle: Cg==
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
       service:
         name: ipam-webhook-service
         namespace: capi-webhook-system
-        path: /mutate-ipam-metal3-io-v1alpha4-ippool
+        path: /mutate-ipam-metal3-io-v1alpha1-ippool
     failurePolicy: Fail
     matchPolicy: Equivalent
     name: default.ippool.ipam.metal3.io
@@ -543,219 +582,13 @@ webhooks:
       - apiGroups:
           - ipam.metal3.io
         apiVersions:
-          - v1alpha4
+          - v1alpha1
         operations:
           - CREATE
           - UPDATE
         resources:
           - ippools
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  labels:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-  name: ipam-leader-election-role
-  namespace: capm3-system
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps
-    verbs:
-      - get
-      - list
-      - watch
-      - create
-      - update
-      - patch
-      - delete
-  - apiGroups:
-      - ""
-    resources:
-      - configmaps/status
-    verbs:
-      - get
-      - update
-      - patch
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  creationTimestamp: null
-  labels:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-  name: ipam-manager-role
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - events
-    verbs:
-      - create
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ""
-    resources:
-      - secrets
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - cluster.x-k8s.io
-    resources:
-      - clusters
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - cluster.x-k8s.io
-    resources:
-      - clusters/status
-    verbs:
-      - get
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ipaddresses
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ipaddresses/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ipclaims
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ipclaims/status
-    verbs:
-      - get
-      - patch
-      - update
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ippools
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - ipam.metal3.io
-    resources:
-      - ippools/status
-    verbs:
-      - get
-      - patch
-      - update
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-  name: ipam-proxy-role
-rules:
-  - apiGroups:
-      - authentication.k8s.io
-    resources:
-      - tokenreviews
-    verbs:
-      - create
-  - apiGroups:
-      - authorization.k8s.io
-    resources:
-      - subjectaccessreviews
-    verbs:
-      - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  labels:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-  name: ipam-leader-election-rolebinding
-  namespace: capm3-system
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: ipam-leader-election-role
-subjects:
-  - kind: ServiceAccount
-    name: default
-    namespace: capm3-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-  name: ipam-manager-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: ipam-manager-role
-subjects:
-  - kind: ServiceAccount
-    name: default
-    namespace: capm3-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  labels:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-  name: ipam-proxy-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: ipam-proxy-role
-subjects:
-  - kind: ServiceAccount
-    name: default
-    namespace: capm3-system
+    sideEffects: None
 ---
 apiVersion: v1
 kind: Service
@@ -770,27 +603,6 @@ spec:
       targetPort: ipam-webhook
   selector:
     cluster.x-k8s.io/provider: infrastructure-metal3
----
-apiVersion: v1
-kind: Service
-metadata:
-  annotations:
-    prometheus.io/port: "8443"
-    prometheus.io/scheme: https
-    prometheus.io/scrape: "true"
-  labels:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-    control-plane: controller-manager
-  name: ipam-controller-metrics-service
-  namespace: capm3-system
-spec:
-  ports:
-    - name: https
-      port: 8443
-      targetPort: https
-  selector:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-    control-plane: controller-manager
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -816,17 +628,6 @@ spec:
     spec:
       containers:
         - args:
-            - --secure-listen-address=0.0.0.0:8443
-            - --upstream=http://127.0.0.1:8080/
-            - --logtostderr=true
-            - --v=10
-          image: gcr.io/kubebuilder/kube-rbac-proxy:v0.4.0
-          name: kube-rbac-proxy
-          ports:
-            - containerPort: 8443
-              name: https
-        - args:
-            - --metrics-addr=127.0.0.1:8080
             - --webhook-port=9443
           command:
             - /manager
@@ -835,7 +636,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-          image: quay.io/metal3-io/ipam:master
+          image: gcr.io/spectro-images-public/deepak/dev/metal3-io/ipam/ip-address-manager:v1alpha4
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
@@ -867,70 +668,7 @@ spec:
             defaultMode: 420
             secretName: ipam-webhook-service-cert
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    cluster.x-k8s.io/provider: infrastructure-metal3
-    control-plane: controller-manager
-    controller-tools.k8s.io: "1.0"
-  name: ipam-controller-manager
-  namespace: capm3-system
-spec:
-  selector:
-    matchLabels:
-      cluster.x-k8s.io/provider: infrastructure-metal3
-      control-plane: controller-manager
-      controller-tools.k8s.io: "1.0"
-  template:
-    metadata:
-      labels:
-        cluster.x-k8s.io/provider: infrastructure-metal3
-        control-plane: controller-manager
-        controller-tools.k8s.io: "1.0"
-    spec:
-      containers:
-        - args:
-            - --secure-listen-address=0.0.0.0:8443
-            - --upstream=http://127.0.0.1:8080/
-            - --logtostderr=true
-            - --v=10
-          image: gcr.io/kubebuilder/kube-rbac-proxy:v0.4.0
-          name: kube-rbac-proxy
-          ports:
-            - containerPort: 8443
-              name: https
-        - args:
-            - --metrics-addr=127.0.0.1:8080
-            - --enable-leader-election
-          command:
-            - /manager
-          env:
-            - name: POD_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-          image: quay.io/metal3-io/ipam:master
-          imagePullPolicy: IfNotPresent
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: healthz
-          name: manager
-          ports:
-            - containerPort: 9440
-              name: healthz
-              protocol: TCP
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: healthz
-      terminationGracePeriodSeconds: 10
-      tolerations:
-        - effect: NoSchedule
-          key: node-role.kubernetes.io/master
----
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   labels:
@@ -946,7 +684,7 @@ spec:
     name: ipam-selfsigned-issuer
   secretName: ipam-webhook-service-cert
 ---
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   labels:
@@ -956,7 +694,7 @@ metadata:
 spec:
   selfSigned: {}
 ---
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   annotations:
@@ -966,12 +704,14 @@ metadata:
     cluster.x-k8s.io/provider: infrastructure-metal3
   name: ipam-validating-webhook-configuration
 webhooks:
-  - clientConfig:
-      caBundle: Cg==
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
       service:
         name: ipam-webhook-service
         namespace: capi-webhook-system
-        path: /validate-ipam-metal3-io-v1alpha4-ipaddress
+        path: /validate-ipam-metal3-io-v1alpha1-ipaddress
     failurePolicy: Fail
     matchPolicy: Equivalent
     name: validation.ipaddress.ipam.metal3.io
@@ -979,18 +719,21 @@ webhooks:
       - apiGroups:
           - ipam.metal3.io
         apiVersions:
-          - v1alpha4
+          - v1alpha1
         operations:
           - CREATE
           - UPDATE
         resources:
           - ipaddresses
-  - clientConfig:
-      caBundle: Cg==
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
       service:
         name: ipam-webhook-service
         namespace: capi-webhook-system
-        path: /validate-ipam-metal3-io-v1alpha4-ipclaim
+        path: /validate-ipam-metal3-io-v1alpha1-ipclaim
     failurePolicy: Fail
     matchPolicy: Equivalent
     name: validation.ipclaim.ipam.metal3.io
@@ -998,18 +741,21 @@ webhooks:
       - apiGroups:
           - ipam.metal3.io
         apiVersions:
-          - v1alpha4
+          - v1alpha1
         operations:
           - CREATE
           - UPDATE
         resources:
           - ipclaims
-  - clientConfig:
-      caBundle: Cg==
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
       service:
         name: ipam-webhook-service
         namespace: capi-webhook-system
-        path: /validate-ipam-metal3-io-v1alpha4-ippool
+        path: /validate-ipam-metal3-io-v1alpha1-ippool
     failurePolicy: Fail
     matchPolicy: Equivalent
     name: validation.ippool.ipam.metal3.io
@@ -1017,9 +763,10 @@ webhooks:
       - apiGroups:
           - ipam.metal3.io
         apiVersions:
-          - v1alpha4
+          - v1alpha1
         operations:
           - CREATE
           - UPDATE
         resources:
           - ippools
+    sideEffects: None

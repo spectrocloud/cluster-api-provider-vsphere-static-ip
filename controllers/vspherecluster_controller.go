@@ -32,8 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha3"
-	capi "sigs.k8s.io/cluster-api/api/v1alpha3"
+	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
+	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -47,8 +47,7 @@ type VSphereClusterReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=vsphereclusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=vsphereclusters/status,verbs=get;update;patch
 
-func (r *VSphereClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *VSphereClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("vspherecluster", req.NamespacedName)
 	var res *ctrl.Result
 	var err error
@@ -83,11 +82,6 @@ func (r *VSphereClusterReconciler) reconcileVSphereClusterControlPlaneEndpoint(c
 
 	log := r.Log.WithValues("vsphereCluster", vSphereCluster.Name, "namespace", vSphereCluster.Namespace)
 	log.V(0).Info("reconcile control plane endpoint address for VSphereCluster")
-
-	if vSphereCluster.Spec.LoadBalancerRef != nil {
-		log.V(0).Info("VSphereCluster is using HAProxyLoadbalancer, skipping reconcile for control plane endpoint")
-		return &ctrl.Result{}, nil
-	}
 
 	if len(vSphereCluster.Spec.ControlPlaneEndpoint.Host) > 0 {
 		log.V(0).Info("control plane endpoint is already allocated for the VSphereCluster", "vSphereCluster", vSphereCluster.Name)
@@ -136,7 +130,7 @@ func (r *VSphereClusterReconciler) reconcileVSphereClusterControlPlaneEndpoint(c
 	log.V(0).Info(fmt.Sprintf("allocating control plane endpoint %s for VSphereCluster %s", ipAddr, vSphereCluster.Name))
 
 	vSphereCluster.Spec.ControlPlaneEndpoint.Host = ipAddr
-	if err := r.Patch(context.TODO(), vSphereCluster.DeepCopyObject(), dataPatch); err != nil {
+	if err := r.Patch(context.TODO(), vSphereCluster, dataPatch); err != nil {
 		return &ctrl.Result{}, errors.Wrapf(err, "failed to patch VSphereCluster %s", vSphereCluster.Name)
 	}
 
