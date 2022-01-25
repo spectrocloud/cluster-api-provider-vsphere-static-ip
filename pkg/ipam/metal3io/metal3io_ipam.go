@@ -46,7 +46,7 @@ func (m Metal3IPAM) AllocateIP(ipName string, pool ipam.IPPool, ownerObj runtime
 	m.log.V(0).Info(fmt.Sprintf("allocate IP %s", ipName))
 
 	//check if ip claim already exists
-	ic, err := getIPClaim(m.Client, pool, ipName)
+	ic, err := getIPClaim(m.Client, pool.GetNamespace(), ipName)
 	if err != nil {
 		m.log.V(0).Info(fmt.Sprintf("failed to get IPClaim %s", ipName))
 		return nil, err
@@ -66,7 +66,30 @@ func (m Metal3IPAM) AllocateIP(ipName string, pool ipam.IPPool, ownerObj runtime
 	return nil, nil
 }
 
-func (m Metal3IPAM) DeallocateIP(name string, pool ipam.IPPool, ownerObj runtime.Object) error {
+func (m Metal3IPAM) DeallocateIP(ipName string, pool ipam.IPPool, ownerObj runtime.Object) error {
+	o := util.GetObjRef(ownerObj)
+	m.log.V(0).Info(fmt.Sprintf("Deallocate IP %s Name %s Namespace %s", ipName, o.Name, o.Namespace))
+
+	//check if ip claim exists
+	ic, err := getIPClaim(m.Client, o.Namespace, ipName)
+	if err != nil {
+		m.log.V(0).Info(fmt.Sprintf("failed to get IPClaim %s", ipName))
+		return err
+	}
+
+	//if IPClaim doesn't exists,then cant delete.
+	if ic == nil {
+		m.log.V(0).Info(fmt.Sprintf("IPClaim %s doesn't exists, skipping deletion", ipName))
+		return nil
+	}
+
+	//delete ip claim
+	if err := m.Client.Delete(context.Background(), ic); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return errors.Wrapf(err, "failed to delete IPClaim %s", ipName)
+		}
+	}
+
 	return nil
 }
 
@@ -128,7 +151,7 @@ func getIPPoolNamespace(meta metav1.ObjectMeta) string {
 }
 
 func getIPAddress(cli client.Client, pool ipam.IPPool, ipName string, log logr.Logger) (ipam.IPAddress, error) {
-	ic, err := getIPClaim(cli, pool, ipName)
+	ic, err := getIPClaim(cli, pool.GetNamespace(), ipName)
 	if err != nil {
 		log.V(0).Info(fmt.Sprintf("failed to get IPClaim %s", ipName))
 		return nil, err
@@ -153,9 +176,9 @@ func getIPAddress(cli client.Client, pool ipam.IPPool, ipName string, log logr.L
 	return convertToMetal3ioIP(*ip, searchDomains), nil
 }
 
-func getIPClaim(cli client.Client, pool ipam.IPPool, claimName string) (*ipamv1.IPClaim, error) {
+func getIPClaim(cli client.Client, poolNamespace string, claimName string) (*ipamv1.IPClaim, error) {
 	ic := &ipamv1.IPClaim{}
-	icKey := types.NamespacedName{Namespace: pool.GetNamespace(), Name: claimName}
+	icKey := types.NamespacedName{Namespace: poolNamespace, Name: claimName}
 	if err := cli.Get(context.Background(), icKey, ic); err != nil {
 		return nil, util.IgnoreNotFound(err)
 	}
