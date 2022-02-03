@@ -67,6 +67,13 @@ func (r *VSphereMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, util.IgnoreNotFound(err)
 	}
 
+	//handle the case where gvk is empty
+	if vsphereMachine.GroupVersionKind().Empty() {
+		log.V(0).Info("setting the missing gvk for vsphereMachine")
+		vsphereMachine.Kind = "VSphereMachine"
+		vsphereMachine.APIVersion = infrav1.GroupVersion.String()
+	}
+
 	// fetch the capi machine.
 	machine, err := clusterutilv1.GetOwnerMachine(ctx, r.Client, vsphereMachine.ObjectMeta)
 	if err != nil {
