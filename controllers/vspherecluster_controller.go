@@ -21,20 +21,17 @@ import (
 	"fmt"
 	"time"
 
-	clusterutilv1 "sigs.k8s.io/cluster-api/util"
-
+	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/factory"
-
-	"github.com/go-logr/logr"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
 	capi "sigs.k8s.io/cluster-api/api/v1alpha4"
+	clusterutilv1 "sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // VSphereClusterReconciler reconciles a VSphereCluster object
@@ -55,6 +52,13 @@ func (r *VSphereClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	vSphereCluster := &infrav1.VSphereCluster{}
 	if err := r.Get(ctx, req.NamespacedName, vSphereCluster); err != nil {
 		return ctrl.Result{}, util.IgnoreNotFound(err)
+	}
+
+	//handle the case where gvk is empty
+	if vSphereCluster.GroupVersionKind().Empty() {
+		log.V(0).Info("setting the missing gvk for vSphereCluster")
+		vSphereCluster.Kind = "VSphereCluster"
+		vSphereCluster.APIVersion = infrav1.GroupVersion.String()
 	}
 
 	cluster, err := clusterutilv1.GetOwnerCluster(ctx, r.Client, vSphereCluster.ObjectMeta)
