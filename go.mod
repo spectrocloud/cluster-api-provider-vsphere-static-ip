@@ -22,6 +22,7 @@ require (
 )
 
 replace (
+	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
 	github.com/metal3-io/ip-address-manager/api => github.com/metal3-io/ip-address-manager/api v0.0.0-20210929111944-d66dc8cb0347
 	sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v0.4.3
 	sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.9.7
