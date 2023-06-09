@@ -25,8 +25,6 @@ RUN  --mount=type=cache,target=/root/.local/share/golang \
 COPY . .
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags "${LDFLAGS} -extldflags '-static'" -a -o manager main.go
-
 RUN  --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.local/share/golang \
@@ -45,16 +43,6 @@ RUN scan-govulncheck.sh manager
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 FROM gcr.io/distroless/static:nonroot
-#FROM gcr.io/spectro-images-public/build-base-images/openssl-fips-ktls:3.2-alpine3.20
-#RUN rm /usr/lib/engines-3/padlock.so
-#RUN rm /lib/libcrypto.so.3
-#RUN rm /usr/lib/ossl-modules/legacy.so
-#RUN rm -rf /opt/openssl-*
-#RUN apk del --rdepends wget
-#RUN rm /usr/bin/wget
-#RUN addgroup -S spectro
-#RUN adduser -S -D -h / spectro spectro
-#USER spectro
 WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532
