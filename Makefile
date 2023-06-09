@@ -1,14 +1,23 @@
 
 .DEFAULT_GOAL:=help
 
-VERSION_SUFFIX ?= -dev
-PROD_VERSION ?= 0.7.4${VERSION_SUFFIX}
-PROD_BUILD_ID ?= latest
+# Fips Flags
+FIPS_ENABLE ?= ""
 
-IMG_URL ?= gcr.io/$(shell gcloud config get-value project)/${USER}
-IMG_TAG ?= latest
-STATIC_IP_IMG ?= ${IMG_URL}/capv-static-ip:${IMG_TAG}
-OVERLAY ?= base
+RELEASE_LOC := release
+ifeq ($(FIPS_ENABLE),yes)
+  RELEASE_LOC := release-fips
+endif
+
+SPECTRO_VERSION ?= 4.0.0-dev
+TAG ?= spectro-${SPECTRO_VERSION}
+ARCH ?= amd64
+# ALL_ARCH = amd64 arm arm64 ppc64le s390x
+ALL_ARCH = amd64 
+
+REGISTRY ?= gcr.io/spectro-dev-public/$(USER)/${RELEASE_LOC}
+
+STATIC_IP_IMG ?= ${REGISTRY}/capv-static-ip:${TAG}
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
@@ -82,7 +91,7 @@ bin: generate ## Generate binaries
 docker: docker-build docker-push ## Tags docker image and also pushes it to container registry
 
 docker-build: ## Build the docker image for controller-manager
-	docker build . -t ${STATIC_IP_IMG}
+	docker build  --build-arg CRYPTO_LIB=${FIPS_ENABLE} . -t ${STATIC_IP_IMG}
 
 docker-push: ## Push the docker image
 	docker push ${STATIC_IP_IMG}
