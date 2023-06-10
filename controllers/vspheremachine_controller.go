@@ -91,6 +91,16 @@ func (r *VSphereMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, nil
 	}
 
+	if !vsphereMachine.ObjectMeta.DeletionTimestamp.IsZero() {
+		res, err = r.reconcileDelete(cluster, vsphereMachine)
+
+		if err != nil {
+			log.V(0).Info("IPClaim delete was uncessful %s", err.Error())
+			return ctrl.Result{}, err
+		}
+		return *res, nil
+	}
+
 	res, err = r.reconcileVSphereMachineIPAddress(cluster, vsphereMachine)
 	if err != nil {
 		log.Error(err, "failed to reconcile VSphereMachine IP")
@@ -101,6 +111,71 @@ func (r *VSphereMachineReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	return *res, err
+}
+
+func (r *VSphereMachineReconciler) reconcileDelete(cluster *capi.Cluster, vSphereMachine *infrav1.VSphereMachine) (*ctrl.Result, error) {
+	if vSphereMachine == nil {
+		r.Log.V(0).Info("invalid VSphereMachine, skipping reconcile delete IPAddress")
+		return &ctrl.Result{}, nil
+	}
+
+	log := r.Log.WithValues("vsphereMachine", vSphereMachine.Name, "namespace", vSphereMachine.Namespace)
+	devices := vSphereMachine.Spec.VirtualMachineCloneSpec.Network.Devices
+	log.V(0).Info("reconcile IP address for VSphereMachine")
+	if len(devices) == 0 {
+		log.V(0).Info("no network device found for VSphereMachine")
+		return &ctrl.Result{}, nil
+	}
+
+	if util.IsMachineIPAllocationDHCP(devices) {
+		log.V(0).Info("VSphereMachine has allocation type DHCP")
+		return &ctrl.Result{}, nil
+	}
+
+	newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]
+	if !ok {
+		log.V(0).Info("ipam type not supported")
+		return &ctrl.Result{}, nil
+	}
+
+	ipamFunc := newIpamFunc(r.Client, log)
+
+	for i := range devices {
+		if util.IsDeviceIPAllocationDHCP(devices[i]) || len(devices[i].IPAddrs) > 0 {
+			continue
+		}
+
+		poolMatchLabels, err := r.getIPPoolMatchLabels(r.Client, vSphereMachine)
+		if err != nil {
+			log.Error(err, "failed to get IPPool match labels")
+			return &ctrl.Result{}, nil
+		}
+		ipPool, err := ipamFunc.GetAvailableIPPool(poolMatchLabels, cluster.ObjectMeta)
+		if err != nil {
+			log.Error(err, "failed to get an available IPPool")
+			return &ctrl.Result{}, nil
+		}
+		if ipPool == nil {
+			log.V(0).Info("waiting for IPPool to be available")
+			return &ctrl.Result{}, nil
+		}
+
+		ipName := util.GetFormattedClaimName(vSphereMachine.Name, i)
+		ip, err := ipamFunc.GetIP(ipName, ipPool)
+		if err != nil {
+			return &ctrl.Result{}, errors.Wrapf(err, "failed to get allocated IP address for VSphereMachine %s", vSphereMachine.Name)
+		}
+
+		if ip != nil {
+			if err := ipamFunc.DeallocateIP(ipName, ipPool, vSphereMachine); err != nil {
+				return &ctrl.Result{}, errors.Wrapf(err, "failed to allocate IP address for VSphereMachine: %s", vSphereMachine.Name)
+			}
+		}
+	}
+
+	log.V(0).Info("successfully reconcile deleted IP address for VSphereMachine")
+
+	return &ctrl.Result{}, nil
 }
 
 func (r *VSphereMachineReconciler) reconcileVSphereMachineIPAddress(cluster *capi.Cluster, vSphereMachine *infrav1.VSphereMachine) (*ctrl.Result, error) {
