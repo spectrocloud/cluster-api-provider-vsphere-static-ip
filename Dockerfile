@@ -34,6 +34,8 @@ RUN if [ ${CRYPTO_LIB} ]; \
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 #FROM gcr.io/distroless/static:latest
 FROM alpine:3.18
+RUN rm /usr/lib/engines-3/padlock.so
+RUN rm /lib/libcrypto.so.3
 RUN addgroup -S spectro
 RUN adduser -S -D -h / spectro spectro
 USER spectro
