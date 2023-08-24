@@ -36,6 +36,7 @@ RUN if [ ${CRYPTO_LIB} ]; \
 FROM alpine:3.18
 RUN rm /usr/lib/engines-3/padlock.so
 RUN rm /lib/libcrypto.so.3
+RUN rm /usr/lib/ossl-modules/legacy.so
 RUN addgroup -S spectro
 RUN adduser -S -D -h / spectro spectro
 USER spectro
