@@ -95,8 +95,7 @@ bin: generate ## Generate binaries
 docker: docker-build docker-push ## Tags docker image and also pushes it to container registry
 
 docker-build: ## Build the docker image for controller-manager
-	#docker build  --build-arg CRYPTO_LIB=${FIPS_ENABLE} . -t ${STATIC_IP_IMG}
-	docker buildx build --load --platform linux/${ARCH} ${BUILD_ARGS} --build-arg ARCH=$(ARCH)  --build-arg  LDFLAGS="$(LDFLAGS)" . -t $(CONTROLLER_IMG)-$(ARCH):$(TAG)
+	docker buildx build --load --platform linux/${ARCH} ${BUILD_ARGS} --build-arg CRYPTO_LIB=$(FIPS_ENABLE) --build-arg ARCH=$(ARCH)  --build-arg  LDFLAGS="$(LDFLAGS)" . -t $(CONTROLLER_IMG)-$(ARCH):$(TAG)
 
 docker-push: ## Push the docker image
 	docker push $(CONTROLLER_IMG)-$(ARCH):$(TAG)
