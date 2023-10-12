@@ -3,6 +3,8 @@
 
 # Fips Flags
 FIPS_ENABLE ?= ""
+BUILDER_GOLANG_VERSION ?= 1.21
+BUILD_ARGS = --build-arg CRYPTO_LIB=${FIPS_ENABLE} --build-arg BUILDER_GOLANG_VERSION=${BUILDER_GOLANG_VERSION}
 
 RELEASE_LOC := release
 ifeq ($(FIPS_ENABLE),yes)
@@ -13,11 +15,13 @@ SPECTRO_VERSION ?= 4.0.0-dev
 TAG ?= v${SPECTRO_VERSION}-spectro
 ARCH ?= amd64
 # ALL_ARCH = amd64 arm arm64 ppc64le s390x
-ALL_ARCH = amd64 
+ALL_ARCH = amd64 arm64
 
 REGISTRY ?= gcr.io/spectro-dev-public/$(USER)/${RELEASE_LOC}
-
-STATIC_IP_IMG ?= ${REGISTRY}/capv-static-ip:${TAG}
+IMAGE_NAME ?= capv-static-ip
+CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
+CONTROLLER_IMG_TAG ?= $(CONTROLLER_IMG):$(TAG)
+STATIC_IP_IMG ?= ${REGISTRY}/${IMAGE_NAME}:${TAG}
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
@@ -91,13 +95,38 @@ bin: generate ## Generate binaries
 docker: docker-build docker-push ## Tags docker image and also pushes it to container registry
 
 docker-build: ## Build the docker image for controller-manager
-	docker build  --build-arg CRYPTO_LIB=${FIPS_ENABLE} . -t ${STATIC_IP_IMG}
+	docker buildx build --load --platform linux/${ARCH} ${BUILD_ARGS} --build-arg CRYPTO_LIB=$(FIPS_ENABLE) --build-arg ARCH=$(ARCH)  --build-arg  LDFLAGS="$(LDFLAGS)" . -t $(CONTROLLER_IMG)-$(ARCH):$(TAG)
 
 docker-push: ## Push the docker image
-	docker push ${STATIC_IP_IMG}
+	docker push $(CONTROLLER_IMG)-$(ARCH):$(TAG)
 
 docker-rmi: ## Remove the local docker image
-	docker rmi ${STATIC_IP_IMG}
+	docker rmi $(CONTROLLER_IMG)-$(ARCH):$(TAG)
+
+## --------------------------------------
+## Docker — All ARCH
+## --------------------------------------
+
+.PHONY: docker-build-all ## Build all the architecture docker images
+docker-build-all: $(addprefix docker-build-,$(ALL_ARCH))
+
+docker-build-%:
+	$(MAKE) ARCH=$* docker-build
+
+.PHONY: docker-push-all ## Push all the architecture docker images
+docker-push-all: $(addprefix docker-push-,$(ALL_ARCH))
+	$(MAKE) docker-push-manifest
+
+docker-push-%:
+	$(MAKE) ARCH=$* docker-push
+
+.PHONY: docker-push-manifest
+docker-push-manifest: ## Push the fat manifest docker image.
+	## Minimum docker version 18.06.0 is required for creating and pushing manifest images.
+	docker manifest create --amend $(CONTROLLER_IMG):$(TAG) $(shell echo $(ALL_ARCH) | sed -e "s~[^ ]*~$(CONTROLLER_IMG)\-&:$(TAG)~g")
+	@for arch in $(ALL_ARCH); do docker manifest annotate --arch $${arch} ${CONTROLLER_IMG}:${TAG} ${CONTROLLER_IMG}-$${arch}:${TAG}; done
+	docker manifest push --purge ${CONTROLLER_IMG}:${TAG}
+
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))

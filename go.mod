@@ -1,6 +1,6 @@
 module github.com/spectrocloud/cluster-api-provider-vsphere-static-ip
 
-go 1.19
+go 1.21
 
 require (
 	github.com/ghodss/yaml v1.0.0
@@ -65,7 +65,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.0-20220521103104-8f96da9f5d5e // indirect
 	k8s.io/apiextensions-apiserver v0.22.2 // indirect
 	k8s.io/cluster-bootstrap v0.21.4 // indirect
 	k8s.io/component-base v0.22.2 // indirect

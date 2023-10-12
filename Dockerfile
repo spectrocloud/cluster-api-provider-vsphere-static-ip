@@ -1,10 +1,13 @@
 # Build the manager binary
-FROM golang:1.19.10-alpine3.18 as builder
+ARG BUILDER_GOLANG_VERSION
+# First stage: build the executable.
+FROM --platform=$TARGETPLATFORM gcr.io/spectro-images-public/golang:${BUILDER_GOLANG_VERSION}-alpine as toolchain
 
 # FIPS
 ARG CRYPTO_LIB
 ENV GOEXPERIMENT=${CRYPTO_LIB:+boringcrypto}
 
+FROM toolchain as builder
 WORKDIR /workspace
 RUN apk update
 RUN apk add git gcc g++ curl
@@ -14,7 +17,9 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
-RUN go mod download
+RUN  --mount=type=cache,target=/root/.local/share/golang \
+     --mount=type=cache,target=/go/pkg/mod \
+     go mod download
 
 # Copy the go source
 COPY . .
@@ -22,12 +27,19 @@ COPY . .
 # Build
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags "${LDFLAGS} -extldflags '-static'" -a -o manager main.go
 
-RUN if [ ${CRYPTO_LIB} ]; \
-    then \
-      CGO_ENABLED=1 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags "${LDFLAGS} -linkmode=external -extldflags '-static'" -a -o manager main.go ;\
-    else \
-      CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -ldflags "${LDFLAGS} -extldflags '-static'" -a -o manager main.go ;\
-    fi
+RUN  --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.local/share/golang \
+    if [ ${CRYPTO_LIB} ];\
+     then \
+        GOARCH=${ARCH} go-build-fips.sh -a -o manager . ;\
+     else \
+        GOARCH=${ARCH} go-build-static.sh -a -o manager . ;\
+     fi
+
+RUN if [ "${CRYPTO_LIB}" ]; then assert-static.sh manager; fi
+RUN if [ "${CRYPTO_LIB}" ]; then assert-fips.sh manager; fi
+RUN scan-govulncheck.sh manager
 
 
 # Use distroless as minimal base image to package the manager binary
