@@ -18,10 +18,10 @@ ARCH ?= amd64
 ALL_ARCH = amd64 arm64
 
 REGISTRY ?= gcr.io/spectro-dev-public/$(USER)/${RELEASE_LOC}
-IMAGE_NAME ?= capi-openstack-controller
+IMAGE_NAME ?= capv-static-ip
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
 CONTROLLER_IMG_TAG ?= $(CONTROLLER_IMG):$(TAG)
-STATIC_IP_IMG ?= ${REGISTRY}/capv-static-ip:${TAG}
+STATIC_IP_IMG ?= ${REGISTRY}/${IMAGE_NAME}:${TAG}
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
