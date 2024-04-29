@@ -2,6 +2,8 @@ module github.com/spectrocloud/cluster-api-provider-vsphere-static-ip
 
 go 1.22
 
+toolchain go1.22.2
+
 require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.4.0
