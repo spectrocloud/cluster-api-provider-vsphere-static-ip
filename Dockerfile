@@ -45,7 +45,7 @@ RUN scan-govulncheck.sh manager
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 #FROM gcr.io/distroless/static:latest
-FROM alpine:3.18
+FROM gcr.io/spectro-images-public/third-party/alpine:3.19-fips
 RUN rm /usr/lib/engines-3/padlock.so
 RUN rm /lib/libcrypto.so.3
 RUN rm /usr/lib/ossl-modules/legacy.so
