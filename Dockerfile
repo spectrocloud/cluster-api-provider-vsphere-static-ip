@@ -46,7 +46,9 @@ RUN scan-govulncheck.sh manager
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 #FROM gcr.io/distroless/static:latest
 FROM gcr.io/spectro-images-public/third-party/alpine:3.19-fips
-
+RUN rm /usr/lib/engines-3/padlock.so
+RUN rm /lib/libcrypto.so.3
+RUN rm /usr/lib/ossl-modules/legacy.so
 RUN addgroup -S spectro
 RUN adduser -S -D -h / spectro spectro
 USER spectro
