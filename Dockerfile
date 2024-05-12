@@ -32,9 +32,9 @@ RUN  --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/root/.local/share/golang \
     if [ ${CRYPTO_LIB} ];\
      then \
-        GOARCH=${ARCH} go-build-fips.sh -a -o manager . ;\
+        GOARCH=${ARCH} go-build-fips.sh -a -o manager github.com/spectrocloud/cluster-api-provider-vsphere-static-ip ;\
      else \
-        GOARCH=${ARCH} go-build-static.sh -a -o manager . ;\
+        GOARCH=${ARCH} go-build-static.sh -a -o manager github.com/spectrocloud/cluster-api-provider-vsphere-static-ip ;\
      fi
 
 RUN if [ "${CRYPTO_LIB}" ]; then assert-static.sh manager; fi
@@ -45,10 +45,11 @@ RUN scan-govulncheck.sh manager
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 #FROM gcr.io/distroless/static:latest
-FROM alpine:3.18
+FROM gcr.io/spectro-images-public/build-base-images/openssl-fips-ktls:3.2-alpine3.19
 RUN rm /usr/lib/engines-3/padlock.so
 RUN rm /lib/libcrypto.so.3
 RUN rm /usr/lib/ossl-modules/legacy.so
+RUN rm -rf /opt/openssl-*
 RUN addgroup -S spectro
 RUN adduser -S -D -h / spectro spectro
 USER spectro
