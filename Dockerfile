@@ -50,6 +50,8 @@ RUN rm /usr/lib/engines-3/padlock.so
 RUN rm /lib/libcrypto.so.3
 RUN rm /usr/lib/ossl-modules/legacy.so
 RUN rm -rf /opt/openssl-*
+RUN apk del --rdepends wget
+RUN rm /usr/bin/wget
 RUN addgroup -S spectro
 RUN adduser -S -D -h / spectro spectro
 USER spectro
