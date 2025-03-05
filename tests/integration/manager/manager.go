@@ -10,9 +10,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
-	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
-	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	kubeadmv4 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
+	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
+	capiv1alpha4 "sigs.k8s.io/cluster-api/api/v1beta1"
+	kubeadmv4 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )

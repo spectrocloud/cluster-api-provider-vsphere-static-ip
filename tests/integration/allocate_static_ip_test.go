@@ -2,7 +2,7 @@ package integration
 
 import (
 	. "github.com/metal3-io/ip-address-manager/controllers"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/controllers"
 	"k8s.io/klog/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"

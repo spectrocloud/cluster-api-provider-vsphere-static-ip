@@ -8,16 +8,16 @@ import (
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
 	. "github.com/metal3-io/ip-address-manager/controllers"
 	"github.com/metal3-io/ip-address-manager/ipam"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/controllers"
 	. "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
-	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/api/v1alpha4"
-	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1alpha4"
-	kubeadmv3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1alpha4"
+	capivsphere "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
+	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
+	capiv1alpha3 "sigs.k8s.io/cluster-api/api/v1beta1"
+	kubeadmv3 "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -46,13 +46,13 @@ func initVariables() {
 		Log:    ctrl.Log.WithName("controllers").WithName("VSphereCluster"),
 	}
 
-	objects := []runtime.Object{}
+	objects := []client.Object{}
 	objects = append(objects, tm.M3IpamIPPool)
 	objects = append(objects, tm.Cluster)
 	objects = append(objects, tm.Machine)
 	objects = append(objects, tm.KubeadmControlPlane)
 
-	ipamClient := fake.NewFakeClientWithScheme(setupScheme(), objects...)
+	ipamClient := fake.NewClientBuilder().WithScheme(setupScheme()).WithObjects(objects...).Build()
 	m3ipamReconciler = &IPPoolReconciler{
 		Client:         ipamClient,
 		Log:            ctrl.Log.WithName("controllers").WithName("IPPool"),
