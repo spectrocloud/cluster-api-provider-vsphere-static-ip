@@ -4,7 +4,7 @@ import (
 	. "github.com/metal3-io/ip-address-manager/controllers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/controllers"
-	"k8s.io/klog/klogr"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -13,7 +13,7 @@ var (
 	vSphereMachineReconciler *VSphereMachineReconciler
 	vSphereClusterReconciler *VSphereClusterReconciler
 	m3ipamReconciler         *IPPoolReconciler
-	log                      = klogr.New().WithName("allocate-static-ip-test")
+	log                      = klog.Background().WithName("allocate-static-ip-test")
 	key                      client.ObjectKey
 	testClient               client.Client
 	ctrlreq                  ctrl.Request

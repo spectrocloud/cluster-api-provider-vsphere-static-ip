@@ -10,8 +10,7 @@ import (
 	"github.com/onsi/ginkgo/v2/reporters"
 	. "github.com/onsi/gomega"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/tests/integration/manager"
-	"k8s.io/klog"
-	"k8s.io/klog/klogr"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -31,7 +30,7 @@ var _ = BeforeSuite(func(done Done) {
 	klog.InitFlags(nil)
 	flag.CommandLine.Set("v", "2")
 	flag.Parse()
-	ctrl.SetLogger(klogr.New())
+	ctrl.SetLogger(klog.Background())
 
 	By("bootstrapping test environment")
 

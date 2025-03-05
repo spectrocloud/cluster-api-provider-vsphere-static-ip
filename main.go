@@ -28,7 +28,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/component-base/logs"
 	logsv1 "k8s.io/component-base/logs/api/v1"
-	"k8s.io/klog/klogr"
+	"k8s.io/klog/v2"
 	infrav1 "sigs.k8s.io/cluster-api-provider-vsphere/apis/v1beta1"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 	kubeadmcontrolplane "sigs.k8s.io/cluster-api/controlplane/kubeadm/api/v1beta1"
@@ -103,7 +103,8 @@ func main() {
 	InitFlags(pflag.CommandLine)
 
 	//ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-	ctrl.SetLogger(klogr.New())
+	// klog.Background will automatically use the right logger.
+	ctrl.SetLogger(klog.Background())
 	// if watchNamespace == "" {
 	// 	setupLog.Info("namespace is not specified. will watch over all namespaces")
 	// } else {
