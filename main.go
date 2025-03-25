@@ -120,7 +120,11 @@ func main() {
 	}
 
 	tlsOptions, metricsOptions, err := flags.GetManagerOptions(managerOptions)
-
+	if err != nil {
+		setupLog.Error(err, "Unable to start manager: invalid flags")
+		os.Exit(1)
+	}
+	metricsOptions.BindAddress = metricsAddr
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
 		// MetricsBindAddress: metricsAddr,
