@@ -66,6 +66,12 @@ func (r *VSphereClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		return ctrl.Result{}, util.IgnoreNotFound(err)
 	}
 
+	// If cluster is nil, log a message and continue - the owner cluster may not exist yet
+	if cluster == nil {
+		log.V(0).Info("owner cluster not found for vSphereCluster, requeuing")
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+	}
+
 	res, err = r.reconcileVSphereClusterControlPlaneEndpoint(cluster, vSphereCluster)
 	if err != nil {
 		log.Error(err, "failed to reconcile VSphereCluster control plane endpoint")
@@ -81,6 +87,11 @@ func (r *VSphereClusterReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *VSphereClusterReconciler) reconcileVSphereClusterControlPlaneEndpoint(cluster *capi.Cluster, vSphereCluster *infrav1.VSphereCluster) (*ctrl.Result, error) {
 	if vSphereCluster == nil {
 		r.Log.V(0).Info("invalid VSphereCluster, skipping reconcile control plane endpoint")
+		return &ctrl.Result{}, nil
+	}
+
+	if cluster == nil {
+		r.Log.V(0).Info("invalid cluster (nil), skipping reconcile control plane endpoint")
 		return &ctrl.Result{}, nil
 	}
 
