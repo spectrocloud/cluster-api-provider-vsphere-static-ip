@@ -19,7 +19,9 @@ ALL_ARCH = amd64 arm64
 
 REGISTRY ?= gcr.io/spectro-dev-public/$(USER)/${RELEASE_LOC}
 IMAGE_NAME ?= capv-static-ip
+MAAS_IMAGE_NAME ?= capmaas-static-ip
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
+MAAS_CONTROLLER_IMG ?= $(REGISTRY)/$(MAAS_IMAGE_NAME)
 CONTROLLER_IMG_TAG ?= $(CONTROLLER_IMG):$(TAG)
 STATIC_IP_IMG ?= ${REGISTRY}/${IMAGE_NAME}:${TAG}
 
@@ -100,8 +102,9 @@ docker-build: ## Build the docker image for controller-manager
 docker-push: ## Push the docker image
 	docker push $(CONTROLLER_IMG)-$(ARCH):$(TAG)
 
-docker-rmi: ## Remove the local docker image
-	docker rmi $(CONTROLLER_IMG)-$(ARCH):$(TAG)
+docker-rmi: ## Remove the local docker images
+	docker rmi $(CONTROLLER_IMG)-$(ARCH):$(TAG) || true
+	docker rmi $(MAAS_CONTROLLER_IMG)-$(ARCH):$(TAG) || true
 
 ## --------------------------------------
 ## Docker — All ARCH
@@ -112,6 +115,7 @@ docker-build-all: $(addprefix docker-build-,$(ALL_ARCH))
 
 docker-build-%:
 	$(MAKE) ARCH=$* docker-build
+	docker tag $(CONTROLLER_IMG)-$*:$(TAG) $(MAAS_CONTROLLER_IMG)-$*:$(TAG)
 
 .PHONY: docker-push-all ## Push all the architecture docker images
 docker-push-all: $(addprefix docker-push-,$(ALL_ARCH))
@@ -119,13 +123,19 @@ docker-push-all: $(addprefix docker-push-,$(ALL_ARCH))
 
 docker-push-%:
 	$(MAKE) ARCH=$* docker-push
+	docker push $(MAAS_CONTROLLER_IMG)-$*:$(TAG)
 
 .PHONY: docker-push-manifest
-docker-push-manifest: ## Push the fat manifest docker image.
+docker-push-manifest: ## Push the fat manifest docker images.
 	## Minimum docker version 18.06.0 is required for creating and pushing manifest images.
+	# Push capv-static-ip image manifest
 	docker manifest create --amend $(CONTROLLER_IMG):$(TAG) $(shell echo $(ALL_ARCH) | sed -e "s~[^ ]*~$(CONTROLLER_IMG)\-&:$(TAG)~g")
 	@for arch in $(ALL_ARCH); do docker manifest annotate --arch $${arch} ${CONTROLLER_IMG}:${TAG} ${CONTROLLER_IMG}-$${arch}:${TAG}; done
 	docker manifest push --purge ${CONTROLLER_IMG}:${TAG}
+	# Push capmaas-static-ip image manifest
+	docker manifest create --amend $(MAAS_CONTROLLER_IMG):$(TAG) $(shell echo $(ALL_ARCH) | sed -e "s~[^ ]*~$(MAAS_CONTROLLER_IMG)\-&:$(TAG)~g")
+	@for arch in $(ALL_ARCH); do docker manifest annotate --arch $${arch} ${MAAS_CONTROLLER_IMG}:${TAG} ${MAAS_CONTROLLER_IMG}-$${arch}:${TAG}; done
+	docker manifest push --purge ${MAAS_CONTROLLER_IMG}:${TAG}
 
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
