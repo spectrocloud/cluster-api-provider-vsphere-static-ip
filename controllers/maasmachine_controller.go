@@ -23,13 +23,13 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
+	infrav1 "github.com/spectrocloud/cluster-api-provider-maas/api/v1beta1"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/factory"
 	_ "github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/ipam/metal3io"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/pkg/util"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	infrav1 "github.com/spectrocloud/cluster-api-provider-maas/api/v1beta1"
 	capi "sigs.k8s.io/cluster-api/api/v1beta1"
 	clusterutilv1 "sigs.k8s.io/cluster-api/util"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -112,17 +112,17 @@ func (r *MaasMachineReconciler) reconcileMaasMachineIPAddress(cluster *capi.Clus
 	log := r.Log.WithValues("maasMachine", maasMachine.Name, "namespace", maasMachine.Namespace)
 	log.V(0).Info("reconcile IP address for MaasMachine")
 
-	// Check if machine has ipAllocationType field and if it's set to static
-	// if maasMachine.Spec.IpAllocationType == nil || *maasMachine.Spec.IpAllocationType != "static" {
-	// 	log.V(0).Info("MaasMachine has allocation type other than static, skipping IP allocation")
-	// 	return &ctrl.Result{}, nil
-	// }
+	// Check if static IP is enabled
+	if maasMachine.Spec.StaticIP == nil || maasMachine.Spec.StaticIP.Enabled == nil || !*maasMachine.Spec.StaticIP.Enabled {
+		log.V(0).Info("MaasMachine static IP is not enabled, skipping IP allocation")
+		return &ctrl.Result{}, nil
+	}
 
-	// // Check if IP address is already allocated
-	// if maasMachine.Spec.IpAddress != nil && len(*maasMachine.Spec.IpAddress) > 0 {
-	// 	log.V(0).Info("IP address is already allocated for MaasMachine", "ipAddress", *maasMachine.Spec.IpAddress)
-	// 	return &ctrl.Result{}, nil
-	// }
+	// Check if IP address is already allocated
+	if maasMachine.Spec.StaticIP.IP != "" {
+		log.V(0).Info("IP address is already allocated for MaasMachine", "ipAddress", maasMachine.Spec.StaticIP.IP)
+		return &ctrl.Result{}, nil
+	}
 
 	dataPatch := client.MergeFrom(maasMachine.DeepCopy())
 	newIpamFunc, ok := factory.IpamFactory[ipam.IpamTypeMetal3io]
@@ -172,8 +172,15 @@ func (r *MaasMachineReconciler) reconcileMaasMachineIPAddress(cluster *capi.Clus
 	ipAddr := util.GetAddress(ip)
 	log.V(0).Info("assigning IP address to MaasMachine", "IPAddress", ipAddr)
 
-	// Set the IP address in the MaasMachine spec
-	// maasMachine.Spec.IpAddress = &ipAddr
+	// Set the IP address and network configuration in the MaasMachine spec
+	if maasMachine.Spec.StaticIP == nil {
+		maasMachine.Spec.StaticIP = &infrav1.StaticIPConfig{
+			Enabled: &[]bool{true}[0], // Set enabled to true
+		}
+	}
+
+	// Set the allocated IP address
+	maasMachine.Spec.StaticIP.IP = ipAddr
 
 	if err := r.Patch(context.TODO(), maasMachine, dataPatch); err != nil {
 		return &ctrl.Result{}, errors.Wrapf(err, "failed to patch MaasMachine %s", maasMachine.Name)
