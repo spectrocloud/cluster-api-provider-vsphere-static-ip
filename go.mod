@@ -108,7 +108,7 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/spectrocloud/cluster-api-provider-maas => github.com/spectrocloud/cluster-api-provider-maas v0.5.1-0.20250731170852-067010dcfbdc
+replace github.com/spectrocloud/cluster-api-provider-maas => github.com/spectrocloud/cluster-api-provider-maas v0.5.1-0.20250815013702-51c775d09dac
 
 // github.com/metal3-io/ip-address-manager/api => github.com/metal3-io/ip-address-manager/api v0.0.0-20210929111944-d66dc8cb0347
 // replace sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v1.9.0-rc.0.0.20250303134942-c9261b079e0b

@@ -178,8 +178,8 @@ github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
 github.com/soheilhy/cmux v0.1.5 h1:jjzc5WVemNEDTLwv9tlmemhC73tI08BNOIGwBOo10Js=
 github.com/soheilhy/cmux v0.1.5/go.mod h1:T7TcVDs9LWfQgPlPsdngu6I6QIoyIFZDDC6sNE1GqG0=
-github.com/spectrocloud/cluster-api-provider-maas v0.5.1-0.20250731170852-067010dcfbdc h1:mkdY97qsaI7HXQzPUxvEjyLoDkzPhdrkivUSSrIr4uU=
-github.com/spectrocloud/cluster-api-provider-maas v0.5.1-0.20250731170852-067010dcfbdc/go.mod h1:i2vhc0/CQntHT7cMPI430CLWUqJyAtcrQLtilP6dJIc=
+github.com/spectrocloud/cluster-api-provider-maas v0.5.1-0.20250815013702-51c775d09dac h1:lKBzWgveK30+CBBIo6ARKsAxfdYoEXXONWx3obBeijM=
+github.com/spectrocloud/cluster-api-provider-maas v0.5.1-0.20250815013702-51c775d09dac/go.mod h1:bQNkmi/Ymyub/b94gzwDW5dba1t0oyX5n6ThcgqN65s=
 github.com/spf13/cast v1.7.0 h1:ntdiHjuueXFgm5nzDRdOS4yfT43P5Fnud6DH50rz/7w=
 github.com/spf13/cast v1.7.0/go.mod h1:ancEpBxwJDODSW/UG4rDrAqiKolqNNh2DX3mk86cAdo=
 github.com/spf13/cobra v1.8.1 h1:e5/vxKd/rZsfSJMUX1agtjeTDf+qv1/JdBF8gg5k9ZM=

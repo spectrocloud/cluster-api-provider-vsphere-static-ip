@@ -113,7 +113,7 @@ func (r *MaasMachineReconciler) reconcileMaasMachineIPAddress(cluster *capi.Clus
 	log.V(0).Info("reconcile IP address for MaasMachine")
 
 	// Check if static IP is enabled
-	if maasMachine.Spec.StaticIP == nil || maasMachine.Spec.StaticIP.Enabled == nil || !*maasMachine.Spec.StaticIP.Enabled {
+	if maasMachine.Spec.StaticIP == nil {
 		log.V(0).Info("MaasMachine static IP is not enabled, skipping IP allocation")
 		return &ctrl.Result{}, nil
 	}
@@ -174,9 +174,7 @@ func (r *MaasMachineReconciler) reconcileMaasMachineIPAddress(cluster *capi.Clus
 
 	// Set the IP address and network configuration in the MaasMachine spec
 	if maasMachine.Spec.StaticIP == nil {
-		maasMachine.Spec.StaticIP = &infrav1.StaticIPConfig{
-			Enabled: &[]bool{true}[0], // Set enabled to true
-		}
+		maasMachine.Spec.StaticIP = &infrav1.StaticIPConfig{}
 	}
 
 	// Set the allocated IP address
