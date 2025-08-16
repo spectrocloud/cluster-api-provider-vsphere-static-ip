@@ -44,7 +44,7 @@ type MaasMachineReconciler struct {
 }
 
 // +kubebuilder:rbac:groups=controlplane.cluster.x-k8s.io,resources=kubeadmcontrolplanes,verbs=get;list;watch
-// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=maasmachinetemplates,verbs=get;list;watch
+// +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=maasmachinetemplates,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=maasmachines,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=maasmachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=machines;machines/status,verbs=get;list;watch
@@ -177,6 +177,31 @@ func (r *MaasMachineReconciler) reconcileMaasMachineIPAddress(cluster *capi.Clus
 		maasMachine.Spec.StaticIP = &infrav1.StaticIPConfig{}
 	}
 
+	// Update the MaasMachineTemplate with the IP address
+	vmTemplateName, ok := maasMachine.GetAnnotations()[capi.TemplateClonedFromNameAnnotation]
+	if ok {
+		maasMachineTemplate := &infrav1.MaasMachineTemplate{}
+		key := types.NamespacedName{Namespace: maasMachine.Namespace, Name: vmTemplateName}
+
+		if err := r.Get(context.TODO(), key, maasMachineTemplate); err == nil {
+			// Check if template already has the correct IP
+			if maasMachineTemplate.Spec.Template.Spec.StaticIP == nil ||
+				maasMachineTemplate.Spec.Template.Spec.StaticIP.IP != ipAddr {
+				templatePatch := client.MergeFrom(maasMachineTemplate.DeepCopy())
+
+				// Initialize StaticIP if nil
+				if maasMachineTemplate.Spec.Template.Spec.StaticIP == nil {
+					maasMachineTemplate.Spec.Template.Spec.StaticIP = &infrav1.StaticIPConfig{}
+				}
+
+				maasMachineTemplate.Spec.Template.Spec.StaticIP.IP = ipAddr
+
+				if err := r.Patch(context.TODO(), maasMachineTemplate, templatePatch); err != nil {
+					log.Error(err, "failed to patch MaasMachineTemplate with static IP")
+				}
+			}
+		}
+	}
 	// Set the allocated IP address
 	maasMachine.Spec.StaticIP.IP = ipAddr
 
