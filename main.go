@@ -21,9 +21,11 @@ import (
 	"time"
 
 	ipamv1 "github.com/metal3-io/ip-address-manager/api/v1alpha1"
+	maasv1 "github.com/spectrocloud/cluster-api-provider-maas/api/v1beta1"
 	"github.com/spectrocloud/cluster-api-provider-vsphere-static-ip/controllers"
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/component-base/logs"
@@ -62,6 +64,7 @@ func init() {
 
 	_ = ipamv1.AddToScheme(scheme)
 	_ = infrav1.AddToScheme(scheme)
+	_ = maasv1.AddToScheme(scheme)
 	_ = capi.AddToScheme(scheme)
 	_ = capi.AddToScheme(scheme)
 	_ = kubeadmcontrolplane.AddToScheme(scheme)
@@ -152,21 +155,38 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.VSphereMachineReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("VSphereMachine"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VSphereMachine")
-		os.Exit(1)
+	// Setup VSphere controllers if CRDs are available
+	if isVSphereCRDAvailable(mgr) {
+		if err = (&controllers.VSphereMachineReconciler{
+			Client: mgr.GetClient(),
+			Log:    ctrl.Log.WithName("controllers").WithName("VSphereMachine"),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "VSphereMachine")
+			os.Exit(1)
+		}
+		if err = (&controllers.VSphereClusterReconciler{
+			Client: mgr.GetClient(),
+			Log:    ctrl.Log.WithName("controllers").WithName("VSphereCluster"),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "VSphereCluster")
+			os.Exit(1)
+		}
+		setupLog.Info("VSphere controllers enabled")
 	}
-	if err = (&controllers.VSphereClusterReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("VSphereCluster"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VSphereCluster")
-		os.Exit(1)
+
+	// Setup MaaS controllers if CRDs are available
+	if isMaaSCRDAvailable(mgr) {
+		if err = (&controllers.MaasMachineReconciler{
+			Client: mgr.GetClient(),
+			Log:    ctrl.Log.WithName("controllers").WithName("MaasMachine"),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "MaasMachine")
+			os.Exit(1)
+		}
+		setupLog.Info("MaaS controllers enabled")
 	}
 	// +kubebuilder:scaffold:builder
 
@@ -175,4 +195,36 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+// isVSphereCRDAvailable checks if VSphere CRDs are available in the cluster
+func isVSphereCRDAvailable(mgr ctrl.Manager) bool {
+	vsphereMachineGVK := schema.GroupVersionKind{
+		Group:   "infrastructure.cluster.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "VSphereMachine",
+	}
+
+	_, err := mgr.GetRESTMapper().RESTMapping(vsphereMachineGVK.GroupKind(), vsphereMachineGVK.Version)
+	if err != nil {
+		setupLog.V(1).Info("VSphere CRDs not available", "error", err)
+		return false
+	}
+	return true
+}
+
+// isMaaSCRDAvailable checks if MaaS CRDs are available in the cluster
+func isMaaSCRDAvailable(mgr ctrl.Manager) bool {
+	maasMachineGVK := schema.GroupVersionKind{
+		Group:   "infrastructure.cluster.x-k8s.io",
+		Version: "v1beta1",
+		Kind:    "MaasMachine",
+	}
+
+	_, err := mgr.GetRESTMapper().RESTMapping(maasMachineGVK.GroupKind(), maasMachineGVK.Version)
+	if err != nil {
+		setupLog.V(1).Info("MaaS CRDs not available", "error", err)
+		return false
+	}
+	return true
 }

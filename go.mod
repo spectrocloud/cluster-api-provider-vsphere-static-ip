@@ -1,8 +1,8 @@
 module github.com/spectrocloud/cluster-api-provider-vsphere-static-ip
 
-go 1.23.0
+go 1.24.2
 
-toolchain go1.23.7
+toolchain go1.24.5
 
 require (
 	github.com/ghodss/yaml v1.0.0
@@ -12,6 +12,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
 	github.com/pkg/errors v0.9.1
+	github.com/spectrocloud/cluster-api-provider-maas v0.5.1-0.20250731170852-067010dcfbdc
 	github.com/spf13/pflag v1.0.6
 	github.com/stretchr/testify v1.10.0
 	k8s.io/api v0.32.2
@@ -103,9 +104,11 @@ require (
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
 	sigs.k8s.io/json v0.0.0-20241010143419-9aa6b5e7a4b3 // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.4.3 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace github.com/spectrocloud/cluster-api-provider-maas => github.com/spectrocloud/cluster-api-provider-maas v0.5.1-0.20250815013702-51c775d09dac
 
 // github.com/metal3-io/ip-address-manager/api => github.com/metal3-io/ip-address-manager/api v0.0.0-20210929111944-d66dc8cb0347
 // replace sigs.k8s.io/cluster-api => sigs.k8s.io/cluster-api v1.9.0-rc.0.0.20250303134942-c9261b079e0b
