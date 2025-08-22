@@ -16,8 +16,8 @@ TAG ?= v${SPECTRO_VERSION}-spectro
 ARCH ?= amd64
 # ALL_ARCH = amd64 arm arm64 ppc64le s390x
 ALL_ARCH = amd64 arm64
-
-REGISTRY ?= gcr.io/spectro-dev-public/$(USER)/${RELEASE_LOC}
+PROJECT ?= "spectro-images/dev"
+REGISTRY ?= us-east1-docker.pkg.dev/${PROJECT}/$(USER)/${RELEASE_LOC}
 IMAGE_NAME ?= capv-static-ip
 MAAS_IMAGE_NAME ?= capmaas-static-ip
 CONTROLLER_IMG ?= $(REGISTRY)/$(IMAGE_NAME)
