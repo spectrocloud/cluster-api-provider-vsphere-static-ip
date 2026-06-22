@@ -3,7 +3,6 @@ module github.com/spectrocloud/cluster-api-provider-vsphere-static-ip
 go 1.16
 
 require (
-	github.com/ghodss/yaml v1.0.0
 	github.com/go-logr/logr v0.4.0
 	github.com/metal3-io/ip-address-manager v0.1.1
 	github.com/metal3-io/ip-address-manager/api v0.0.0
@@ -12,6 +11,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/tools v0.1.9 // indirect
+	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.22.2
 	k8s.io/apimachinery v0.22.2
 	k8s.io/client-go v0.22.2
