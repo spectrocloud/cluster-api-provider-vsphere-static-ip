@@ -12,7 +12,8 @@ ifeq ($(FIPS_ENABLE),yes)
 endif
 
 SPECTRO_VERSION ?= 4.0.0-dev
-TAG ?= v${SPECTRO_VERSION}-spectro
+VERSION ?= 0.0.0
+TAG ?= v${VERSION}-spectro-${SPECTRO_VERSION}
 ARCH ?= amd64
 # ALL_ARCH = amd64 arm arm64 ppc64le s390x
 ALL_ARCH = amd64 arm64
